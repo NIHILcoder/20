@@ -1,0 +1,326 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+
+    /* Sidebar variables */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    /* Sidebar variables for dark mode */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 5.9% 10%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.particles-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.generation-preview {
+  aspect-ratio: 1 / 1;
+  @apply bg-muted rounded-lg flex items-center justify-center overflow-hidden;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.mode-toggle-container {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.mode-toggle-slider {
+  position: absolute;
+  height: 100%;
+  transition: transform 0.2s ease;
+  border-radius: 9999px;
+  z-index: 0;
+}
+
+@keyframes gradient {
+  0% { background-position: 0 center; }
+  100% { background-position: 300% center; }
+}
+
+.animate-gradient {
+  animation: gradient 8s linear infinite;
+}
+
+.bg-gradient-size {
+  background-size: 300% auto;
+}
+
+  /* Предотвращение "прыжка" контента при открытии модальных окон */
+:root {
+  --scrollbar-width: 0px; /* Задаем начальное значение */
+}
+
+/* Альтернативный подход: зафиксировать ширину страницы */
+html.dialog-open,
+body.dialog-open {
+  overflow: hidden;
+  /* Предотвращает сдвиг при открытии модального окна */
+  width: 100%;
+  position: fixed;
+  overscroll-behavior: none;
+}
+
+/* Стиль для внутреннего контейнера с прокруткой в модальных окнах */
+.modal-scrollable {
+  overflow-y: auto;
+  max-height: 90vh;
+}
+
+/* Добавьте эти анимации в конец файла app/globals.css */
+
+/* Анимации для генератора */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+          90deg,
+          rgba(var(--primary), 0.1) 0%,
+          rgba(var(--primary), 0.2) 25%,
+          rgba(var(--primary), 0.1) 50%,
+          rgba(var(--primary), 0.2) 75%,
+          rgba(var(--primary), 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite linear;
+}
+
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.5s ease-out forwards;
+}
+
+/* Стилизация скроллбара для улучшения UI */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--muted-foreground), 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--muted-foreground), 0.5);
+}
+
+/* Улучшенные стили для генератора изображений */
+.generation-preview {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.generation-preview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--primary), 0.3), transparent);
+  transform: translateX(-100%);
+  animation: shimmerLine 2s infinite;
+  opacity: 0;
+  z-index: 10;
+}
+
+.generation-preview.generating::before {
+  opacity: 1;
+}
+
+@keyframes shimmerLine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Эффекты наведения для элементов управления */
+button:not([disabled]) {
+  transition: all 0.2s ease;
+}
+
+button:hover:not([disabled]) .icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+input:focus, textarea:focus, select:focus {
+  transition: all 0.2s ease;
+  box-shadow: 0 0 0 2px rgba(var(--primary), 0.1);
+}
+
+.tag-badge {
+  transition: all 0.2s ease;
+}
+
+.tag-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Анимированный градиент для кнопки генерации */
+.gradient-button {
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+          90deg,
+          hsl(var(--primary)) 0%,
+          hsl(var(--primary)/0.8) 50%,
+          hsl(var(--primary)) 100%
+  );
+  animation: shimmer 2s infinite linear;
+  transition: all 0.3s ease;
+}
+
+.gradient-button:hover {
+  background-size: 100% 100%;
+  animation: none;
+}
+
+/* Блестящая анимация для подсказок */
+.sparkle {
+  position: relative;
+}
+
+.sparkle::before,
+.sparkle::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.4);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  animation: sparkleAnim 2s infinite;
+}
+
+.sparkle::before {
+  top: -8px;
+  left: -8px;
+}
+
+.sparkle::after {
+  bottom: -5px;
+  right: -5px;
+  animation-delay: 1s;
+}
+
+@keyframes sparkleAnim {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
