@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage, useLocalTranslation } from '@/components/language-context';
-import { Search, Filter, Grid, Rows, SlidersHorizontal, Flame, Clock, Award } from 'lucide-react';
+import { Search, Filter, Grid, Rows, SlidersHorizontal, Flame, Clock, Award, Trophy, Users } from 'lucide-react';
+import { Tournaments } from './tournaments';
+import { Collaborations } from './collaborations';
 
 interface CommunityFiltersProps {
   onFilterChange: (filters: {
@@ -16,6 +18,7 @@ interface CommunityFiltersProps {
     modelType: string;
     timeRange: string;
     viewMode: 'grid' | 'list';
+    activeTab: string;
   }) => void;
 }
 
@@ -27,6 +30,7 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
   const [timeRange, setTimeRange] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('artworks');
   
   const { language } = useLanguage();
   const t = useLocalTranslation({en: {}, ru: {}});
@@ -70,9 +74,10 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
       search,
       modelType,
       timeRange,
-      viewMode
+      viewMode,
+      activeTab
     });
-  }, [category, sortBy, search, modelType, timeRange, viewMode]);
+  }, [category, sortBy, search, modelType, timeRange, viewMode, activeTab]);
   
   // Обработчик поиска
   const handleSearch = (e: React.FormEvent) => {
@@ -125,22 +130,50 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
         </div>
       </div>
       
-      {/* Сортировка */}
-      <Tabs defaultValue="newest" value={sortBy} onValueChange={setSortBy} className="w-full">
+      {/* Основные вкладки */}
+      <Tabs defaultValue="artworks" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-3">
-          <TabsTrigger value="newest" className="flex items-center gap-1">
-            <Clock className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.localT('community.newest')}</span>
-          </TabsTrigger>
-          <TabsTrigger value="trending" className="flex items-center gap-1">
-            <Flame className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.localT('community.trending')}</span>
-          </TabsTrigger>
-          <TabsTrigger value="popular" className="flex items-center gap-1">
+          <TabsTrigger value="artworks" className="flex items-center justify-center gap-1 text-center">
             <Award className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.localT('community.popular')}</span>
+            <span className="w-full text-center">{t.localT('community.artworks') || 'Работы'}</span>
+          </TabsTrigger>
+          <TabsTrigger value="tournaments" className="flex items-center justify-center gap-1 text-center">
+            <Trophy className="h-4 w-4" />
+            <span className="w-full text-center">{t.localT('community.tournaments') || 'Турниры'}</span>
+          </TabsTrigger>
+          <TabsTrigger value="collaborations" className="flex items-center justify-center gap-1 text-center">
+            <Users className="h-4 w-4" />
+            <span className="w-full text-center">{t.localT('community.collaborations') || 'Коллаборации'}</span>
           </TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="artworks">
+          {/* Сортировка для работ */}
+          <Tabs defaultValue="newest" value={sortBy} onValueChange={setSortBy} className="w-full mt-4">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="newest" className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                <span className="hidden sm:inline">{t.localT('community.newest')}</span>
+              </TabsTrigger>
+              <TabsTrigger value="trending" className="flex items-center gap-1">
+                <Flame className="h-4 w-4" />
+                <span className="hidden sm:inline">{t.localT('community.trending')}</span>
+              </TabsTrigger>
+              <TabsTrigger value="popular" className="flex items-center gap-1">
+                <Award className="h-4 w-4" />
+                <span className="hidden sm:inline">{t.localT('community.popular')}</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </TabsContent>
+        
+        <TabsContent value="tournaments">
+          <Tournaments />
+        </TabsContent>
+        
+        <TabsContent value="collaborations">
+          <Collaborations />
+        </TabsContent>
       </Tabs>
       
       {/* Расширенные фильтры */}

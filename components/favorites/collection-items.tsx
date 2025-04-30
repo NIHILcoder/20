@@ -49,7 +49,44 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  
+  // Добавляем переводы для компонента
+  const translations = {
+    en: {
+      'favorites.back_to_collections': 'Back to Collections',
+      'favorites.empty_collection': 'This collection is empty',
+      'favorites.add_to_collection': 'Add artworks to this collection from the community or your history',
+      'favorites.view': 'View',
+      'favorites.download': 'Download',
+      'favorites.share': 'Share',
+      'favorites.remove': 'Remove from Collection',
+      'favorites.remove_confirm': 'Are you sure you want to remove this artwork from the collection?',
+      'favorites.remove_confirm_description': 'This action will only remove the artwork from this collection, not delete it from the system.',
+      'favorites.cancel': 'Cancel',
+      'favorites.by': 'by',
+      'favorites.try_again': 'Try Again',
+      'favorites.no_items': 'No items found',
+      'favorites.loading': 'Loading collection items...'
+    },
+    ru: {
+      'favorites.back_to_collections': 'Назад к коллекциям',
+      'favorites.empty_collection': 'Эта коллекция пуста',
+      'favorites.add_to_collection': 'Добавьте работы в эту коллекцию из сообщества или вашей истории',
+      'favorites.view': 'Просмотр',
+      'favorites.download': 'Скачать',
+      'favorites.share': 'Поделиться',
+      'favorites.remove': 'Удалить из коллекции',
+      'favorites.remove_confirm': 'Вы уверены, что хотите удалить эту работу из коллекции?',
+      'favorites.remove_confirm_description': 'Это действие только удалит работу из этой коллекции, но не удалит её из системы.',
+      'favorites.cancel': 'Отмена',
+      'favorites.by': 'автор',
+      'favorites.try_again': 'Попробовать снова',
+      'favorites.no_items': 'Элементы не найдены',
+      'favorites.loading': 'Загрузка элементов коллекции...'
+    }
+  };
+  
+  const t = useLocalTranslation(translations);
   
   // Загрузка коллекции и её элементов
   useEffect(() => {
@@ -60,30 +97,32 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
       setError(null);
       
       try {
-        // Здесь должен быть запрос к API для получения элементов коллекции
-        // Для примера используем getUserFavorites и фильтруем нужную коллекцию
+        // Получаем информацию о коллекции
         const response = await getUserFavorites(userId);
         if (response && typeof response === 'object' && 'collections' in response) {
-          // Явно приводим response.collections к типу Collection[]
           const collections = response.collections as Collection[];
           const foundCollection = collections.find((c: Collection) => c.id === collectionId);
         
           if (foundCollection) {
             setCollection(foundCollection);
-          
-          // Здесь должен быть запрос к API для получения элементов коллекции
-          // В реальном приложении нужно создать отдельный эндпоинт
-            // Для примера создадим заглушку
-            const mockItems: CollectionItem[] = [];
-            setItems(mockItems);
+            
+            // Получаем элементы коллекции через API
+            try {
+              const collectionItems = await getCollectionItems(collectionId);
+              setItems(collectionItems);
+            } catch (itemsError) {
+              console.error('Ошибка при загрузке элементов коллекции:', itemsError);
+              // Если API для получения элементов не реализован, используем пустой массив
+              setItems([]);
+            }
           } else {
-            setError('Коллекция не найдена');
+            setError(language === 'en' ? 'Collection not found' : 'Коллекция не найдена');
           }
         } else {
-          throw new Error('Неверный формат ответа API');
+          throw new Error(language === 'en' ? 'Invalid API response format' : 'Неверный формат ответа API');
         }
       } catch (err) {
-        setError('Ошибка при загрузке элементов коллекции');
+        setError(language === 'en' ? 'Error loading collection items' : 'Ошибка при загрузке элементов коллекции');
         console.error(err);
       } finally {
         setLoading(false);
@@ -91,7 +130,7 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
     };
     
     fetchCollectionItems();
-  }, [userId, collectionId]);
+  }, [userId, collectionId, language]);
   
   // Удаление элемента из коллекции
   const handleRemoveItem = async () => {
@@ -117,6 +156,9 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
           </Button>
           <Skeleton className="h-8 w-40" />
         </div>
+        <p className="text-muted-foreground text-center py-4">
+          {t.localT('favorites.loading')}
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, index) => (
             <Card key={index} className="overflow-hidden">
@@ -150,7 +192,7 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
               setError(null);
             }}
           >
-            Попробовать снова
+            {t.localT('favorites.try_again')}
           </Button>
         </div>
       </div>
@@ -194,9 +236,14 @@ export function CollectionItems({ userId, collectionId, onBack }: CollectionItem
                   className="w-full h-48 object-cover"
                 />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button variant="outline" size="sm" className="text-white border-white hover:bg-white/20 hover:text-white">
-                    {t.localT('favorites.view')}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="text-white border-white hover:bg-white/20 hover:text-white">
+                      {t.localT('favorites.view')}
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-white border-white hover:bg-white/20 hover:text-white">
+                      {t.localT('favorites.download')}
+                    </Button>
+                  </div>
                 </div>
               </div>
               <CardContent className="p-4">

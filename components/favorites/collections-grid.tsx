@@ -56,7 +56,56 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
   const [newCollectionDescription, setNewCollectionDescription] = useState('');
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  
+  // Добавляем переводы для компонента
+  const translations = {
+    en: {
+      'favorites.my_collections': 'My Collections',
+      'favorites.new_collection': 'New Collection',
+      'favorites.create_collection': 'Create Collection',
+      'favorites.create_collection_description': 'Create a new collection to organize your favorite artworks',
+      'favorites.collection_name': 'Collection Name',
+      'favorites.collection_name_placeholder': 'Enter collection name',
+      'favorites.collection_description': 'Description (optional)',
+      'favorites.collection_description_placeholder': 'Enter collection description',
+      'favorites.create': 'Create',
+      'favorites.cancel': 'Cancel',
+      'favorites.delete_collection': 'Delete Collection',
+      'favorites.delete_collection_confirm': 'Are you sure you want to delete this collection? This action cannot be undone.',
+      'favorites.delete': 'Delete',
+      'favorites.edit': 'Edit',
+      'favorites.items': 'items',
+      'favorites.empty_state': 'You don\'t have any collections yet',
+      'favorites.create_first': 'Create your first collection to organize your favorite artworks',
+      'favorites.try_again': 'Try Again',
+      'favorites.view': 'View',
+      'favorites.actions': 'Actions'
+    },
+    ru: {
+      'favorites.my_collections': 'Мои коллекции',
+      'favorites.new_collection': 'Новая коллекция',
+      'favorites.create_collection': 'Создать коллекцию',
+      'favorites.create_collection_description': 'Создайте новую коллекцию для организации ваших любимых работ',
+      'favorites.collection_name': 'Название коллекции',
+      'favorites.collection_name_placeholder': 'Введите название коллекции',
+      'favorites.collection_description': 'Описание (необязательно)',
+      'favorites.collection_description_placeholder': 'Введите описание коллекции',
+      'favorites.create': 'Создать',
+      'favorites.cancel': 'Отмена',
+      'favorites.delete_collection': 'Удалить коллекцию',
+      'favorites.delete_collection_confirm': 'Вы уверены, что хотите удалить эту коллекцию? Это действие нельзя отменить.',
+      'favorites.delete': 'Удалить',
+      'favorites.edit': 'Редактировать',
+      'favorites.items': 'элементов',
+      'favorites.empty_state': 'У вас пока нет коллекций',
+      'favorites.create_first': 'Создайте свою первую коллекцию для организации любимых работ',
+      'favorites.try_again': 'Попробовать снова',
+      'favorites.view': 'Просмотр',
+      'favorites.actions': 'Действия'
+    }
+  };
+  
+  const t = useLocalTranslation(translations);
   
   // Загрузка коллекций и избранного
   useEffect(() => {

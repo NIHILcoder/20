@@ -3,8 +3,8 @@
  */
 
 import { NextResponse } from 'next/server';
-const jwt = require('jsonwebtoken');
-const userModel = require('../../../../models/user');
+import jwt from 'jsonwebtoken';
+import * as userModel from '../../../../models/user';
 
 /**
  * Обработчик POST-запроса для входа пользователя

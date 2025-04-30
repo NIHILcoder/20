@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { EnhancedParticlesBackground } from "@/components/enhanced-particles-background";
 import { ArtworkGrid } from "@/components/community/artwork-grid";
 import { CommunityFilters } from "@/components/community/community-filters";
+import { Tournaments } from "@/components/community/tournaments";
+import { Collaborations } from "@/components/community/collaborations";
 import { useLanguage, useLocalTranslation } from "@/components/language-context";
 
 export default function CommunityPage() {
@@ -13,7 +15,8 @@ export default function CommunityPage() {
     search: '',
     modelType: 'all',
     timeRange: 'all',
-    viewMode: 'grid' as 'grid' | 'list'
+    viewMode: 'grid' as 'grid' | 'list',
+    activeTab: 'artworks'
   });
   
   const { language } = useLanguage();
@@ -41,15 +44,25 @@ export default function CommunityPage() {
         {/* Фильтры */}
         <CommunityFilters onFilterChange={handleFilterChange} />
         
-        {/* Сетка работ */}
-        <ArtworkGrid 
-          category={filters.category}
-          sortBy={filters.sortBy}
-          search={filters.search}
-          modelType={filters.modelType}
-          timeRange={filters.timeRange}
-          viewMode={filters.viewMode}
-        />
+        {/* Отображение контента в зависимости от активной вкладки */}
+        {filters.activeTab === 'artworks' && (
+          <ArtworkGrid 
+            category={filters.category}
+            sortBy={filters.sortBy}
+            search={filters.search}
+            modelType={filters.modelType}
+            timeRange={filters.timeRange}
+            viewMode={filters.viewMode}
+          />
+        )}
+        
+        {filters.activeTab === 'tournaments' && (
+          <Tournaments />
+        )}
+        
+        {filters.activeTab === 'collaborations' && (
+          <Collaborations />
+        )}
       </div>
     </div>
   );

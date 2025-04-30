@@ -9,7 +9,20 @@ import { useLanguage, useLocalTranslation } from "@/components/language-context"
 export default function FavoritesPage() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  
+  // Добавляем переводы для страницы избранного
+  const pageTranslations = {
+    en: {
+      'favorites.page_title': 'My Favorites',
+      'favorites.page_subtitle': 'Manage your collections and favorite artworks',
+    },
+    ru: {
+      'favorites.page_title': 'Мое избранное',
+      'favorites.page_subtitle': 'Управляйте вашими коллекциями и избранными работами',
+    }
+  };
+  
+  const t = useLocalTranslation(pageTranslations);
   
   // Временная заглушка для ID пользователя
   // В реальном приложении должно быть получено из контекста авторизации

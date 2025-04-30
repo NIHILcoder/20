@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 const { withAuth } = require('../../../../middleware/auth');
-const db = require('../../../../db');
+import db from '../../../../db';
 
 /**
  * Обработчик POST-запроса для обновления кредитов пользователя

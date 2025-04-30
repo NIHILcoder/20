@@ -2,20 +2,22 @@
  * API-эндпоинт для страницы избранного
  */
 
-const { NextResponse } = require('next/server');
-const db = require('../../../db');
+import { NextResponse } from 'next/server';
+import db from '../../../db';
+import { getApiMessage, getLanguageFromRequest } from '../translations';
 
 /**
  * Получение коллекций пользователя
  */
 export async function GET(request) {
   try {
+    const language = getLanguageFromRequest(request);
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     
     if (!userId) {
       return NextResponse.json(
-        { error: 'Необходимо указать ID пользователя' },
+        { error: getApiMessage('api.favorites.error.user_id_required', language) },
         { status: 400 }
       );
     }
@@ -57,7 +59,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Ошибка при получении данных избранного:', error);
     return NextResponse.json(
-      { error: 'Произошла ошибка при получении данных избранного' },
+      { error: getApiMessage('api.favorites.error.get_failed', language) },
       { status: 500 }
     );
   }
@@ -68,12 +70,13 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
+    const language = getLanguageFromRequest(request);
     const body = await request.json();
     const { userId, name, description } = body;
     
     if (!userId || !name) {
       return NextResponse.json(
-        { error: 'Необходимо указать ID пользователя и название коллекции' },
+        { error: getApiMessage('api.collection.error.name_required', language) },
         { status: 400 }
       );
     }
@@ -91,7 +94,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Ошибка при создании коллекции:', error);
     return NextResponse.json(
-      { error: 'Произошла ошибка при создании коллекции' },
+      { error: getApiMessage('api.collection.error.create_failed', language) },
       { status: 500 }
     );
   }
@@ -102,12 +105,13 @@ export async function POST(request) {
  */
 export async function PUT(request) {
   try {
+    const language = getLanguageFromRequest(request);
     const body = await request.json();
     const { collectionId, artworkId } = body;
     
     if (!collectionId || !artworkId) {
       return NextResponse.json(
-        { error: 'Необходимо указать ID коллекции и ID работы' },
+        { error: getApiMessage('api.collection_items.error.artwork_id_required', language) },
         { status: 400 }
       );
     }
@@ -126,7 +130,7 @@ export async function PUT(request) {
   } catch (error) {
     console.error('Ошибка при добавлении работы в коллекцию:', error);
     return NextResponse.json(
-      { error: 'Произошла ошибка при добавлении работы в коллекцию' },
+      { error: getApiMessage('api.collection_items.error.add_failed', language) },
       { status: 500 }
     );
   }
@@ -137,13 +141,14 @@ export async function PUT(request) {
  */
 export async function DELETE(request) {
   try {
+    const language = getLanguageFromRequest(request);
     const { searchParams } = new URL(request.url);
     const collectionId = searchParams.get('collectionId');
     const artworkId = searchParams.get('artworkId');
     
     if (!collectionId) {
       return NextResponse.json(
-        { error: 'Необходимо указать ID коллекции' },
+        { error: getApiMessage('api.collection.error.id_required', language) },
         { status: 400 }
       );
     }
@@ -168,7 +173,7 @@ export async function DELETE(request) {
   } catch (error) {
     console.error('Ошибка при удалении:', error);
     return NextResponse.json(
-      { error: 'Произошла ошибка при удалении' },
+      { error: getApiMessage('api.collection.error.delete_failed', language) },
       { status: 500 }
     );
   }

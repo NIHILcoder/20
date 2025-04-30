@@ -2,7 +2,7 @@
  * Конфигурация подключения к базе данных PostgreSQL
  */
 
-module.exports = {
+export default {
   // Параметры подключения к базе данных
   connection: {
     host: process.env.DB_HOST || 'localhost',

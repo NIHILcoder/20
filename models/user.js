@@ -2,8 +2,8 @@
  * Модель для работы с пользователями
  */
 
-const db = require('../db');
-const bcrypt = require('bcryptjs');
+import db from '../db';
+import bcrypt from 'bcryptjs';
 
 /**
  * Создает нового пользователя
@@ -107,7 +107,7 @@ async function getUsers(limit = 10, offset = 0) {
   return result.rows;
 }
 
-module.exports = {
+export {
   createUser,
   findUserByUsernameOrEmail,
   findUserById,

@@ -4,7 +4,7 @@
 
 const { NextResponse } = require('next/server');
 const artworkModel = require('../../../models/artwork');
-const db = require('../../../db');
+import db from '../../../db';
 
 /**
  * Получение работ сообщества с фильтрацией и сортировкой

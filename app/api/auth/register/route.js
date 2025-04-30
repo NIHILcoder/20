@@ -3,7 +3,7 @@
  */
 
 import { NextResponse } from 'next/server';
-const userModel = require('../../../../models/user');
+import * as userModel from '../../../../models/user';
 
 /**
  * Обработчик POST-запроса для регистрации пользователя

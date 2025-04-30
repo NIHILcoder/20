@@ -3,7 +3,7 @@
  */
 
 const { NextResponse } = require('next/server');
-const db = require('../../../db');
+import db from '../../../db';
 
 /**
  * Получение истории генераций пользователя

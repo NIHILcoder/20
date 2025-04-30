@@ -2,8 +2,8 @@
  * Модуль для работы с базой данных PostgreSQL
  */
 
-const { Pool } = require('pg');
-const dbConfig = require('../config/database');
+import { Pool } from 'pg';
+import dbConfig from '../config/database';
 
 // Создание пула соединений с базой данных
 const pool = new Pool({
@@ -60,7 +60,7 @@ const transaction = async (callback) => {
   }
 };
 
-module.exports = {
+export default {
   query,
   transaction,
   pool
