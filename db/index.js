@@ -2,8 +2,9 @@
  * Модуль для работы с базой данных PostgreSQL
  */
 
-import { Pool } from 'pg';
-import dbConfig from '../config/database';
+import pkg from 'pg';
+const { Pool } = pkg;
+import dbConfig from '../config/database.js';
 
 // Создание пула соединений с базой данных
 const pool = new Pool({

@@ -2,9 +2,9 @@
  * Middleware для проверки аутентификации пользователей
  */
 
-import jwt from 'jsonwebtoken';
-import { NextResponse } from 'next/server';
-import * as userModel from '../models/user';
+const jwt = require('jsonwebtoken');
+const { NextResponse } = require('next/server');
+const userModel = require('../../models/user');
 
 /**
  * Проверяет токен аутентификации и добавляет информацию о пользователе в запрос
@@ -86,7 +86,7 @@ function withAuth(handler) {
   };
 }
 
-export {
+module.exports = {
   authenticateUser,
   withAuth
 };

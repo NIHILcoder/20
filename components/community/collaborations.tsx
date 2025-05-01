@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Users, MessageSquare, Calendar, ArrowRight, Sparkles, ChevronRight, Info, AlertCircle } from 'lucide-react';
 import { useLanguage, useLocalTranslation } from '@/components/language-context';
-import { getCurrentUser } from '@/services/user-service';
+import { getCurrentUser, checkCollaborationParticipation, joinCollaboration, CollaborationParticipation } from '@/services/user-service';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { User } from '@/types/user';
@@ -59,9 +59,22 @@ export function Collaborations() {
         setCurrentUser(user);
         
         if (user) {
-          // В реальном приложении здесь будет запрос к API для получения коллабораций пользователя
-          // Имитация данных
-          setUserCollaborations([1, 2]); // Предположим, что пользователь участвует в коллаборациях с ID 1 и 2
+          // Получаем информацию об участии пользователя в коллаборациях
+          const userCollabs: number[] = [];
+          
+          // Проверяем участие в каждой коллаборации
+          for (const collab of collaborations) {
+            try {
+              const participation = await checkCollaborationParticipation(user.id, collab.id);
+              if (participation) {
+                userCollabs.push(collab.id);
+              }
+            } catch (error) {
+              console.error(`Ошибка при проверке участия в коллаборации ${collab.id}:`, error);
+            }
+          }
+          
+          setUserCollaborations(userCollabs);
         }
       } catch (error) {
         console.error('Ошибка при загрузке данных пользователя:', error);
@@ -69,7 +82,7 @@ export function Collaborations() {
     };
     
     fetchUserData();
-  }, []);
+  }, [collaborations]);
   
   // Загрузка данных о коллаборациях
   useEffect(() => {
@@ -77,96 +90,15 @@ export function Collaborations() {
       setLoading(true);
       
       try {
-        // В реальном приложении здесь будет запрос к API
-        // Имитация задержки API
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Получаем данные о коллаборациях из API
+        const response = await fetch('/api/community/collaborations');
         
-        // Демо-данные для коллабораций
-        const demoCollaborations: Collaboration[] = [
-        {
-          id: 1,
-          title: 'Создание серии иллюстраций для детской книги',
-          description: 'Ищу художников для совместной работы над серией иллюстраций к детской книге о приключениях в космосе',
-          createdAt: '2023-06-10',
-          deadline: '2023-08-15',
-          status: 'open',
-          category: 'Иллюстрация',
-          initiator: {
-            id: 101,
-            name: 'Анна К.',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            role: 'Писатель'
-          },
-          participants: [
-            {
-              id: 102,
-              name: 'Михаил Л.',
-              avatar: 'https://i.pravatar.cc/150?img=2',
-              role: 'Иллюстратор'
-            }
-          ],
-          maxParticipants: 5,
-          skills: ['Иллюстрация', 'Детский стиль', 'Цифровая живопись']
-        },
-        {
-          id: 2,
-          title: 'Концепт-арт для инди-игры',
-          description: 'Разрабатываем инди-игру в жанре фэнтези. Требуются художники для создания концепт-артов персонажей и окружения',
-          createdAt: '2023-05-20',
-          deadline: '2023-07-30',
-          status: 'in_progress',
-          category: 'Концепт-арт',
-          initiator: {
-            id: 201,
-            name: 'Игорь В.',
-            avatar: 'https://i.pravatar.cc/150?img=3',
-            role: 'Геймдизайнер'
-          },
-          participants: [
-            {
-              id: 202,
-              name: 'Елена С.',
-              avatar: 'https://i.pravatar.cc/150?img=4',
-              role: 'Художник'
-            },
-            {
-              id: 203,
-              name: 'Дмитрий К.',
-              avatar: 'https://i.pravatar.cc/150?img=5',
-              role: 'Концепт-художник'
-            }
-          ],
-          maxParticipants: 4,
-          skills: ['Концепт-арт', 'Персонажи', 'Окружение', 'Фэнтези']
-        },
-        {
-          id: 3,
-          title: 'Коллективная выставка цифрового искусства',
-          description: 'Организуем онлайн-выставку цифрового искусства. Приглашаем художников с оригинальными работами',
-          createdAt: '2023-06-05',
-          deadline: '2023-09-01',
-          status: 'open',
-          category: 'Выставка',
-          initiator: {
-            id: 301,
-            name: 'Ольга М.',
-            avatar: 'https://i.pravatar.cc/150?img=6',
-            role: 'Куратор'
-          },
-          participants: [
-            {
-              id: 302,
-              name: 'Алексей П.',
-              avatar: 'https://i.pravatar.cc/150?img=7',
-              role: 'Цифровой художник'
-            }
-          ],
-          maxParticipants: 15,
-          skills: ['Цифровое искусство', 'NFT', 'Современное искусство']
+        if (!response.ok) {
+          throw new Error('Ошибка при получении данных о коллаборациях');
         }
-      ];
-      
-        setCollaborations(demoCollaborations);
+        
+        const collaborationsData = await response.json();
+        setCollaborations(collaborationsData);
       } catch (error) {
         console.error('Ошибка при загрузке коллабораций:', error);
       } finally {
@@ -549,10 +481,10 @@ export function Collaborations() {
                             setJoinSuccess(null);
                             
                             try {
-                              // В реальном приложении здесь будет запрос к API
-                              await new Promise(resolve => setTimeout(resolve, 800));
+                              // Используем функцию joinCollaboration из user-service
+                              const participation = await joinCollaboration(currentUser.id, selectedCollaboration.id);
                               
-                              // Имитация успешного присоединения
+                              // Обновляем список коллабораций пользователя
                               setUserCollaborations(prev => [...prev, selectedCollaboration.id]);
                               setJoinSuccess('Вы успешно присоединились к коллаборации!');
                             } catch (error) {

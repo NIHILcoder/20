@@ -2,7 +2,7 @@
  * Модель для работы с работами (генерациями)
  */
 
-const db = require('../db');
+import db from '../db';
 
 /**
  * Создает новую работу
@@ -148,7 +148,7 @@ async function hasUserLikedArtwork(userId, artworkId) {
   return result.rows.length > 0;
 }
 
-module.exports = {
+export default {
   createArtwork,
   findArtworkById,
   updateArtwork,

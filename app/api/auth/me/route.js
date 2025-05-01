@@ -3,7 +3,7 @@
  */
 
 import { NextResponse } from 'next/server';
-const { withAuth } = require('../../../../middleware/auth');
+import { withAuth } from '../../../../middleware/auth';
 
 /**
  * Обработчик GET-запроса для получения информации о текущем пользователе

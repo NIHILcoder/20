@@ -2,9 +2,9 @@
  * API-эндпоинт для страницы сообщества
  */
 
-const { NextResponse } = require('next/server');
-const artworkModel = require('../../../models/artwork');
-import db from '../../../db';
+import { NextResponse } from 'next/server';
+import artworkModel from '@/models/artwork';
+import db from '@/db';
 
 /**
  * Получение работ сообщества с фильтрацией и сортировкой

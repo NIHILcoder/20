@@ -66,60 +66,21 @@ export function Tournaments() {
       setLoading(true);
       
       try {
-        // В реальном приложении здесь будет запрос к API
-        // Имитация задержки API
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Получаем данные о турнирах из API
+        const response = await fetch('/api/community/tournaments');
         
-        // Демо-данные для турниров
-        const demoTournaments: Tournament[] = [
-        {
-          id: 1,
-          title: 'Летний фестиваль искусства',
-          description: 'Создайте летние пейзажи и выиграйте ценные призы',
-          startDate: '2023-06-15',
-          endDate: '2023-07-15',
-          participants: 128,
-          maxParticipants: 200,
-          prize: '50 000 ₽',
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?q=80&w=1974&auto=format&fit=crop',
-          category: 'Пейзаж'
-        },
-        {
-          id: 2,
-          title: 'Портреты будущего',
-          description: 'Турнир по созданию футуристических портретов',
-          startDate: '2023-08-01',
-          endDate: '2023-08-30',
-          participants: 56,
-          maxParticipants: 100,
-          prize: '30 000 ₽',
-          status: 'upcoming',
-          image: 'https://images.unsplash.com/photo-1595785925922-87b19c8e7aac?q=80&w=1974&auto=format&fit=crop',
-          category: 'Портрет'
-        },
-        {
-          id: 3,
-          title: 'Фантастические миры',
-          description: 'Создайте уникальный фантастический мир',
-          startDate: '2023-05-01',
-          endDate: '2023-05-30',
-          participants: 200,
-          maxParticipants: 200,
-          prize: '100 000 ₽',
-          status: 'completed',
-          image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1994&auto=format&fit=crop',
-          category: 'Фэнтези'
-        },
-      ];
-      
-        setTournaments(demoTournaments);
+        if (!response.ok) {
+          throw new Error('Ошибка при получении данных о турнирах');
+        }
+        
+        const tournamentsData = await response.json();
+        setTournaments(tournamentsData);
         
         // Если пользователь авторизован, загружаем информацию об участии в турнирах
         if (currentUser) {
           const participations: {[key: number]: TournamentParticipation} = {};
           
-          for (const tournament of demoTournaments) {
+          for (const tournament of tournamentsData) {
             try {
               const participation = await checkTournamentParticipation(currentUser.id, tournament.id);
               if (participation) {
