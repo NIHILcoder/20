@@ -49,7 +49,36 @@ export function Collaborations() {
   const [userCollaborations, setUserCollaborations] = useState<number[]>([]);
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  const t = useLocalTranslation({
+    en: {
+      'collaborations.loading': 'Loading collaborations...',
+      'collaborations.join': 'Join Collaboration',
+      'collaborations.view_details': 'View Details',
+      'collaborations.participants': 'Participants',
+      'collaborations.deadline': 'Deadline',
+      'collaborations.status': 'Status',
+      'collaborations.skills_needed': 'Skills Needed',
+      'collaborations.already_joined': 'Already Joined',
+      'collaborations.join_closed': 'Joining Closed',
+      'collaborations.join_full': 'No Spots Available',
+      'collaborations.initiator': 'Initiator',
+      'collaborations.category': 'Category'
+    },
+    ru: {
+      'collaborations.loading': 'Загрузка коллабораций...',
+      'collaborations.join': 'Присоединиться',
+      'collaborations.view_details': 'Подробнее',
+      'collaborations.participants': 'Участники',
+      'collaborations.deadline': 'Срок',
+      'collaborations.status': 'Статус',
+      'collaborations.skills_needed': 'Требуемые навыки',
+      'collaborations.already_joined': 'Вы уже участвуете',
+      'collaborations.join_closed': 'Присоединение закрыто',
+      'collaborations.join_full': 'Нет свободных мест',
+      'collaborations.initiator': 'Инициатор',
+      'collaborations.category': 'Категория'
+    }
+  });
   
   // Загрузка данных о пользователе
   useEffect(() => {
@@ -65,9 +94,20 @@ export function Collaborations() {
           // Проверяем участие в каждой коллаборации
           for (const collab of collaborations) {
             try {
-              const participation = await checkCollaborationParticipation(user.id, collab.id);
-              if (participation) {
-                userCollabs.push(collab.id);
+              // Проверяем возможность присоединения к коллаборации
+              // Присоединиться можно к коллаборациям со статусом 'open' или 'in_progress'
+              // и если количество участников меньше максимального
+              // и дедлайн не должен быть истекшим
+              const canJoin = 
+                (collab.status === 'open' || collab.status === 'in_progress') && 
+                collab.participants.length < collab.maxParticipants && 
+                new Date(collab.deadline) > new Date();
+                
+              if (canJoin) {
+                const participation = await checkCollaborationParticipation(user.id, collab.id);
+                if (participation) {
+                  userCollabs.push(collab.id);
+                }
               }
             } catch (error) {
               console.error(`Ошибка при проверке участия в коллаборации ${collab.id}:`, error);
@@ -90,15 +130,9 @@ export function Collaborations() {
       setLoading(true);
       
       try {
-        // Получаем данные о коллаборациях из API
-        const response = await fetch('/api/community/collaborations');
-        
-        if (!response.ok) {
-          throw new Error('Ошибка при получении данных о коллаборациях');
-        }
-        
-        const collaborationsData = await response.json();
-        setCollaborations(collaborationsData);
+        // Используем моковые данные вместо запроса к API
+        const { mockCollaborations } = await import('@/data/mock-community-data');
+        setCollaborations(mockCollaborations);
       } catch (error) {
         console.error('Ошибка при загрузке коллабораций:', error);
       } finally {
@@ -207,58 +241,7 @@ export function Collaborations() {
   
   return (
     <div className="space-y-6 py-4">
-      {/* Заголовок с анимацией */}
-      <div className="relative overflow-hidden rounded-lg p-6 bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white">
-        <motion.div 
-          className="absolute top-4 right-8 text-yellow-300 opacity-70"
-          variants={particleVariants}
-          initial="initial"
-          animate="animate"
-        >
-          <Sparkles className="h-6 w-6" />
-        </motion.div>
-        
-        <motion.div 
-          className="absolute bottom-8 left-12 text-yellow-300 opacity-70"
-          variants={particleVariants}
-          initial="initial"
-          animate="animate"
-          transition={{ delay: 0.5 }}
-        >
-          <Sparkles className="h-4 w-4" />
-        </motion.div>
-        
-        <motion.div 
-          className="absolute top-12 left-1/4 text-blue-300 opacity-70"
-          variants={particleVariants}
-          initial="initial"
-          animate="animate"
-          transition={{ delay: 1 }}
-        >
-          <Sparkles className="h-5 w-5" />
-        </motion.div>
-        
-        <div className="relative z-10 flex items-center justify-center flex-col">
-          <motion.div
-            variants={iconVariants}
-            initial="hidden"
-            animate="visible"
-            className="mb-4"
-          >
-            <Users className="h-12 w-12" />
-          </motion.div>
-          
-          <motion.div
-            variants={titleVariants}
-            initial="hidden"
-            animate="visible"
-            className="text-center"
-          >
-            <h2 className="text-2xl font-bold mb-2">Творческие коллаборации</h2>
-            <p className="max-w-2xl mx-auto">Объединяйтесь с другими художниками для создания уникальных проектов и расширения своих творческих возможностей</p>
-          </motion.div>
-        </div>
-      </div>
+
       
       {/* Фильтры */}
       <div className="flex justify-center space-x-2">

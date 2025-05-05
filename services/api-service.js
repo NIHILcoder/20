@@ -72,6 +72,30 @@ export async function getUserHistory(params = {}) {
 }
 
 /**
+ * Получение статистики генераций пользователя
+ * @param {number} userId - ID пользователя
+ * @param {string} timeRange - Временной диапазон (day, week, month, year)
+ * @returns {Promise<Object>} - Объект со статистикой генераций
+ */
+export async function getUserStatistics(userId, timeRange = 'week') {
+  if (!userId) {
+    throw new Error('Необходимо указать ID пользователя');
+  }
+
+  const queryParams = new URLSearchParams();
+  queryParams.append('userId', userId);
+  queryParams.append('timeRange', timeRange);
+
+  const response = await fetch(`/api/statistics?${queryParams.toString()}`);
+  
+  if (!response.ok) {
+    throw new Error('Ошибка при получении статистики генераций');
+  }
+  
+  return response.json();
+}
+
+/**
  * Удаление работы из истории
  * @param {number} artworkId - ID работы
  * @param {number} userId - ID пользователя

@@ -142,7 +142,7 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
       const newCollection = await createCollection({
         userId,
         name: newCollectionName.trim(),
-        description: newCollectionDescription.trim() || null
+        description: newCollectionDescription.trim() || undefined
       });
       
       setCollections([...collections, { 
@@ -219,21 +219,21 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
   }
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
           {t.localT('favorites.my_collections')}
         </h2>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 transition-all duration-300">
               <Plus className="h-4 w-4" />
               <span>{t.localT('favorites.new_collection')}</span>
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{t.localT('favorites.create_collection')}</DialogTitle>
+              <DialogTitle className="text-xl">{t.localT('favorites.create_collection')}</DialogTitle>
               <DialogDescription>
                 {t.localT('favorites.create_collection_description')}
               </DialogDescription>
@@ -247,6 +247,7 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
                   value={newCollectionName} 
                   onChange={(e) => setNewCollectionName(e.target.value)} 
                   placeholder={t.localT('favorites.collection_name_placeholder')}
+                  className="focus-visible:ring-primary"
                 />
               </div>
               <div className="space-y-2">
@@ -258,6 +259,7 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
                   onChange={(e) => setNewCollectionDescription(e.target.value)} 
                   placeholder={t.localT('favorites.collection_description_placeholder')}
                   rows={3}
+                  className="focus-visible:ring-primary resize-none"
                 />
               </div>
             </div>
@@ -265,7 +267,11 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
               <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                 {t.localT('common.cancel')}
               </Button>
-              <Button onClick={handleCreateCollection}>
+              <Button 
+                onClick={handleCreateCollection}
+                className="bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90"
+                disabled={!newCollectionName.trim()}
+              >
                 {t.localT('common.create')}
               </Button>
             </DialogFooter>
@@ -275,16 +281,18 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
       
       {/* Сетка коллекций */}
       {collections.length === 0 ? (
-        <div className="text-center p-12 border rounded-lg bg-muted/20">
-          <Folder className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-medium">
+        <div className="text-center p-12 border rounded-lg bg-background/80 backdrop-blur-sm shadow-md border-border/50 transition-all duration-300 hover:shadow-lg">
+          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
+            <Folder className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="mt-6 text-xl font-medium">
             {t.localT('favorites.no_collections')}
           </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
             {t.localT('favorites.create_first_collection')}
           </p>
-          <Button 
-            className="mt-4" 
+          <Button
+            className="mt-6 bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 transition-all duration-300"
             onClick={() => setCreateDialogOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -294,23 +302,33 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {collections.map((collection) => (
-            <Card key={collection.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <Card 
+              key={collection.id} 
+              className="overflow-hidden border border-border/50 transition-all duration-300 hover:shadow-md group"
+            >
               <div 
                 className="cursor-pointer" 
                 onClick={() => onCollectionSelect && onCollectionSelect(collection.id)}
               >
-                <div className="h-40 bg-muted flex items-center justify-center overflow-hidden">
+                <div className="h-48 bg-muted flex items-center justify-center overflow-hidden relative">
                   {collection.cover_image ? (
-                    <img 
-                      src={collection.cover_image} 
-                      alt={collection.name} 
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <img 
+                        src={collection.cover_image} 
+                        alt={collection.name} 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <Button variant="secondary" className="bg-white/80 hover:bg-white">
+                          {t.localT('favorites.view')}
+                        </Button>
+                      </div>
+                    </>
                   ) : (
-                    <Folder className="h-16 w-16 text-muted-foreground/50" />
+                    <Folder className="h-16 w-16 text-primary/70" />
                   )}
                 </div>
-                <CardContent className="p-4">
+                <CardContent className="p-5">
                   <h3 className="font-medium truncate">{collection.name}</h3>
                   {collection.description && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
@@ -320,24 +338,25 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
                 </CardContent>
               </div>
               <CardFooter className="p-4 flex justify-between items-center border-t">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground flex items-center">
+                  <Heart className="h-3.5 w-3.5 mr-1.5 text-primary/70" />
                   {collection.item_count} {collection.item_count === 1 
                     ? t.localT('favorites.item') 
                     : t.localT('favorites.items')}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem className="cursor-pointer">
                       <Edit className="h-4 w-4 mr-2" />
                       {t.localT('favorites.edit')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      className="text-red-500 focus:text-red-500"
+                      className="text-red-500 focus:text-red-500 cursor-pointer"
                       onClick={() => {
                         setCollectionToDelete(collection.id);
                         setDeleteDialogOpen(true);
@@ -362,24 +381,24 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
         </h2>
         
         {favorites.length === 0 ? (
-          <div className="text-center p-12 border rounded-lg bg-muted/20">
-            <Heart className="h-12 w-12 mx-auto text-muted-foreground" />
+          <div className="text-center p-12 border rounded-lg bg-background/80 backdrop-blur-sm shadow-md border-border/50">
+            <Heart className="h-12 w-12 mx-auto text-red-500/70" />
             <h3 className="mt-4 text-lg font-medium">
               {t.localT('favorites.no_favorites')}
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               {t.localT('favorites.like_artworks')}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {favorites.map((favorite) => (
-              <Card key={favorite.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <div className="relative group">
+              <Card key={favorite.id} className="overflow-hidden hover:shadow-md transition-shadow group">
+                <div className="relative">
                   <img 
                     src={favorite.image_url} 
                     alt={favorite.title} 
-                    className="w-full h-48 object-cover"
+                    className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Button variant="outline" size="sm" className="text-white border-white hover:bg-white/20 hover:text-white">
@@ -408,16 +427,21 @@ export function CollectionsGrid({ userId, onCollectionSelect }: CollectionsGridP
       
       {/* Диалог подтверждения удаления */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>{t.localT('favorites.confirm_delete')}</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl text-red-500">
+              {t.localT('favorites.delete_collection')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {t.localT('favorites.delete_confirmation')}
+              {t.localT('favorites.delete_collection_confirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t.localT('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCollection} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogAction 
+              onClick={handleDeleteCollection} 
+              className="bg-red-500 hover:bg-red-600 text-white focus:ring-red-500"
+            >
               {t.localT('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>

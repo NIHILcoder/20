@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,23 @@ import { useLanguage, useLocalTranslation } from "@/components/language-context"
 import { Flame, Calendar, Award, BarChart as BarChartIcon, LineChart as LineChartIcon, PieChart as PieChartIcon } from "lucide-react";
 import { BarChart, LineChart, PieChart } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
+
+// Интерфейс для данных статистики
+interface StatsData {
+  generations: {
+    total: number;
+    average: number;
+    mostActiveDay: string;
+  };
+  models: {
+    usage: number[];
+  };
+  time: {
+    total: number;
+    average: number;
+    longest: number;
+  };
+}
 
 interface ChartTooltipContext {
   label?: string;
@@ -21,7 +38,46 @@ interface ChartTooltipContext {
 
 export function GenerationStatistics() {
   const [timeRange, setTimeRange] = useState<"day" | "week" | "month" | "year">("week");
+  const [statsData, setStatsData] = useState<StatsData | null>(null);
+  const [loading, setLoading] = useState(false);
   const { language } = useLanguage();
+  
+  // Загрузка данных статистики при изменении временного диапазона
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      setLoading(true);
+      try {
+        // В реальном приложении здесь был бы запрос к API
+        // Имитация загрузки данных
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Тестовые данные в зависимости от выбранного диапазона
+        const mockData: StatsData = {
+          generations: {
+            total: timeRange === 'day' ? 15 : timeRange === 'week' ? 109 : timeRange === 'month' ? 450 : 5200,
+            average: timeRange === 'day' ? 15 : timeRange === 'week' ? 15.6 : timeRange === 'month' ? 15 : 14.2,
+            mostActiveDay: timeRange === 'day' ? 'today' : 'saturday'
+          },
+          models: {
+            usage: [35, 25, 15, 20, 5] // Процентное соотношение использования моделей
+          },
+          time: {
+            total: timeRange === 'day' ? 45 : timeRange === 'week' ? 405 : timeRange === 'month' ? 1800 : 21600,
+            average: timeRange === 'day' ? 45 : timeRange === 'week' ? 58 : timeRange === 'month' ? 60 : 59,
+            longest: timeRange === 'day' ? 45 : timeRange === 'week' ? 90 : timeRange === 'month' ? 120 : 180
+          }
+        };
+        
+        setStatsData(mockData);
+      } catch (error) {
+        console.error('Ошибка при загрузке статистики:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchStatistics();
+  }, [timeRange]);
 
   // Page-specific translations
   const statsTranslations = {
@@ -255,7 +311,9 @@ export function GenerationStatistics() {
                 <div className="rounded-lg border border-muted p-4 bg-secondary/10">
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.total_generations')}</div>
-                    <div className="text-3xl font-bold">109</div>
+                    <div className="text-3xl font-bold">
+                      {loading ? '...' : (statsData?.generations.total || 0)}
+                    </div>
                   </div>
                 </div>
 
@@ -263,7 +321,9 @@ export function GenerationStatistics() {
                 <div className="rounded-lg border border-muted p-4 bg-secondary/10">
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.average_per_day')}</div>
-                    <div className="text-3xl font-bold">15.6</div>
+                    <div className="text-3xl font-bold">
+                      {loading ? '...' : (statsData?.generations.average.toFixed(1) || 0)}
+                    </div>
                   </div>
                 </div>
 
@@ -271,7 +331,9 @@ export function GenerationStatistics() {
                 <div className="rounded-lg border border-muted p-4 bg-secondary/10">
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.most_active_day')}</div>
-                    <div className="text-3xl font-bold">{localT('stats.saturday')}</div>
+                    <div className="text-3xl font-bold">
+                      {loading ? '...' : (statsData?.generations.mostActiveDay ? localT(`stats.${statsData.generations.mostActiveDay.toLowerCase()}`) : '-')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -379,7 +441,7 @@ export function GenerationStatistics() {
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.total_time')}</div>
                     <div className="flex items-end">
-                      <span className="text-3xl font-bold mr-2">405</span>
+                      <span className="text-3xl font-bold mr-2">{loading ? '...' : (statsData?.time.total || 0)}</span>
                       <span className="text-lg mb-1">{localT('stats.minutes')}</span>
                     </div>
                   </div>
@@ -390,7 +452,7 @@ export function GenerationStatistics() {
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.average_time')}</div>
                     <div className="flex items-end">
-                      <span className="text-3xl font-bold mr-2">57.9</span>
+                      <span className="text-3xl font-bold mr-2">{loading ? '...' : (statsData?.time.average.toFixed(0) || 0)}</span>
                       <span className="text-lg mb-1">{localT('stats.minutes')}</span>
                     </div>
                   </div>
@@ -401,7 +463,7 @@ export function GenerationStatistics() {
                   <div className="flex flex-col justify-between h-full">
                     <div className="text-sm text-muted-foreground mb-2">{localT('stats.longest_session')}</div>
                     <div className="flex items-end">
-                      <span className="text-3xl font-bold mr-2">90</span>
+                      <span className="text-3xl font-bold mr-2">{loading ? '...' : (statsData?.time.longest || 0)}</span>
                       <span className="text-lg mb-1">{localT('stats.minutes')}</span>
                     </div>
                   </div>

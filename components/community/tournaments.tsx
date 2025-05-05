@@ -44,7 +44,32 @@ export function Tournaments() {
   const [registrationSuccess, setRegistrationSuccess] = useState<string | null>(null);
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  const t = useLocalTranslation({
+    en: {
+      'tournaments.loading': 'Loading tournaments...',
+      'tournaments.register': 'Register',
+      'tournaments.view_details': 'View Details',
+      'tournaments.participants': 'Participants',
+      'tournaments.prize': 'Prize',
+      'tournaments.dates': 'Dates',
+      'tournaments.rules': 'Rules',
+      'tournaments.already_registered': 'Already Registered',
+      'tournaments.registration_closed': 'Registration Closed',
+      'tournaments.registration_full': 'Registration Full'
+    },
+    ru: {
+      'tournaments.loading': 'Загрузка турниров...',
+      'tournaments.register': 'Зарегистрироваться',
+      'tournaments.view_details': 'Подробнее',
+      'tournaments.participants': 'Участники',
+      'tournaments.prize': 'Приз',
+      'tournaments.dates': 'Даты',
+      'tournaments.rules': 'Правила',
+      'tournaments.already_registered': 'Вы уже зарегистрированы',
+      'tournaments.registration_closed': 'Регистрация закрыта',
+      'tournaments.registration_full': 'Регистрация заполнена'
+    }
+  });
   
   // Загрузка данных о пользователе
   useEffect(() => {
@@ -66,25 +91,25 @@ export function Tournaments() {
       setLoading(true);
       
       try {
-        // Получаем данные о турнирах из API
-        const response = await fetch('/api/community/tournaments');
-        
-        if (!response.ok) {
-          throw new Error('Ошибка при получении данных о турнирах');
-        }
-        
-        const tournamentsData = await response.json();
-        setTournaments(tournamentsData);
+        // Используем моковые данные вместо запроса к API
+        const { mockTournaments } = await import('@/data/mock-community-data');
+        setTournaments(mockTournaments);
         
         // Если пользователь авторизован, загружаем информацию об участии в турнирах
         if (currentUser) {
           const participations: {[key: number]: TournamentParticipation} = {};
           
-          for (const tournament of tournamentsData) {
+          for (const tournament of mockTournaments) {
             try {
-              const participation = await checkTournamentParticipation(currentUser.id, tournament.id);
-              if (participation) {
-                participations[tournament.id] = participation;
+              // Проверяем возможность присоединения к турниру
+              // Присоединиться можно только к турнирам со статусом 'active'
+              // и если количество участников меньше максимального
+              if (tournament.status === 'active' && tournament.participants < tournament.maxParticipants) {
+                // Здесь можно было бы проверить участие через API, но для тестовых данных просто проверяем статус
+                const participation = await checkTournamentParticipation(currentUser.id, tournament.id);
+                if (participation) {
+                  participations[tournament.id] = participation;
+                }
               }
             } catch (error) {
               console.error(`Ошибка при проверке участия в турнире ${tournament.id}:`, error);
@@ -195,47 +220,6 @@ export function Tournaments() {
   
   return (
     <div className="space-y-6 py-4">
-      {/* Заголовок с анимированным фоном */}
-      <motion.div 
-        className="relative overflow-hidden rounded-lg p-6 text-center text-white"
-        initial="initial"
-        animate="animate"
-        variants={backgroundVariants}
-      >
-        <div className="relative z-10">
-          <motion.div 
-            className="inline-block mb-4"
-            variants={trophyVariants}
-            initial="initial"
-            animate="animate"
-          >
-            <Trophy className="h-12 w-12" />
-          </motion.div>
-          
-          <h2 className="text-2xl font-bold mb-2">Турниры и соревнования</h2>
-          <p className="max-w-2xl mx-auto">Участвуйте в турнирах, соревнуйтесь с другими художниками и выигрывайте ценные призы</p>
-          
-          {/* Анимированные звезды */}
-          <motion.div 
-            className="absolute top-4 right-8 text-yellow-300"
-            variants={starVariants}
-            initial="initial"
-            animate="animate"
-          >
-            <Star className="h-6 w-6" />
-          </motion.div>
-          
-          <motion.div 
-            className="absolute bottom-4 left-8 text-yellow-300"
-            variants={starVariants}
-            initial="initial"
-            animate="animate"
-            transition={{ delay: 0.3 }}
-          >
-            <Star className="h-4 w-4" />
-          </motion.div>
-        </div>
-      </motion.div>
       
       {/* Список турниров */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

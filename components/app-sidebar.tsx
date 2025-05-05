@@ -29,6 +29,7 @@ export function AppSidebar() {
     };
   }, [collapsed]);
 
+  // Создаем массив элементов навигации в зависимости от статуса авторизации
   const mainNavItems = [
     {
       title: t('nav.generate'),
@@ -48,18 +49,21 @@ export function AppSidebar() {
       icon: Users,
       notification: 3,
     },
-    {
-      title: t('nav.favorites'),
-      href: "/favorites",
-      icon: Heart,
-      notification: false,
-    },
-    {
-      title: t('nav.history'),
-      href: "/history",
-      icon: Clock,
-      notification: false,
-    },
+    // Страница избранного доступна только авторизованным пользователям
+    ...(isAuthenticated ? [
+      {
+        title: t('nav.favorites'),
+        href: "/favorites",
+        icon: Heart,
+        notification: false,
+      },
+      {
+        title: t('nav.history'),
+        href: "/history",
+        icon: Clock,
+        notification: false,
+      }
+    ] : []),
     {
       title: t('nav.learning'),
       href: "/learning",

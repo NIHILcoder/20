@@ -33,7 +33,74 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
   const [activeTab, setActiveTab] = useState('artworks');
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}});
+  const t = useLocalTranslation({
+    en: {
+      'community.artworks': 'Artworks',
+      'community.tournaments': 'Tournaments',
+      'community.collaborations': 'Collaborations',
+      'community.newest': 'Newest',
+      'community.trending': 'Trending',
+      'community.popular': 'Popular',
+      'community.all_categories': 'All Categories',
+      'community.portrait': 'Portrait',
+      'community.landscape': 'Landscape',
+      'community.abstract': 'Abstract',
+      'community.fantasy': 'Fantasy',
+      'community.animals': 'Animals',
+      'community.architecture': 'Architecture',
+      'community.art': 'Art',
+      'community.other': 'Other',
+      'community.all_models': 'All Models',
+      'community.other_models': 'Other Models',
+      'community.all_time': 'All Time',
+      'community.today': 'Today',
+      'community.this_week': 'This Week',
+      'community.this_month': 'This Month',
+      'community.search_placeholder': 'Search community...',
+      'community.grid_view': 'Grid View',
+      'community.list_view': 'List View',
+      'community.filters': 'Filters',
+      'community.category': 'Category',
+      'community.select_category': 'Select Category',
+      'community.model_type': 'Model Type',
+      'community.select_model': 'Select Model',
+      'community.time_range': 'Time Range',
+      'community.select_time': 'Select Time Range'
+    },
+    ru: {
+      'community.artworks': 'Работы',
+      'community.tournaments': 'Турниры',
+      'community.collaborations': 'Коллаборации',
+      'community.newest': 'Новые',
+      'community.trending': 'В тренде',
+      'community.popular': 'Популярные',
+      'community.all_categories': 'Все категории',
+      'community.portrait': 'Портрет',
+      'community.landscape': 'Пейзаж',
+      'community.abstract': 'Абстракция',
+      'community.fantasy': 'Фэнтези',
+      'community.animals': 'Животные',
+      'community.architecture': 'Архитектура',
+      'community.art': 'Искусство',
+      'community.other': 'Другое',
+      'community.all_models': 'Все модели',
+      'community.other_models': 'Другие модели',
+      'community.all_time': 'За все время',
+      'community.today': 'Сегодня',
+      'community.this_week': 'За эту неделю',
+      'community.this_month': 'За этот месяц',
+      'community.search_placeholder': 'Поиск по сообществу...',
+      'community.grid_view': 'Сетка',
+      'community.list_view': 'Список',
+      'community.filters': 'Фильтры',
+      'community.category': 'Категория',
+      'community.select_category': 'Выберите категорию',
+      'community.model_type': 'Тип модели',
+      'community.select_model': 'Выберите модель',
+      'community.time_range': 'Временной диапазон',
+      'community.select_time': 'Выберите период'
+    }
+  });
   
   // Категории работ
   const categories = [
@@ -135,15 +202,15 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
         <TabsList className="grid grid-cols-3">
           <TabsTrigger value="artworks" className="flex items-center justify-center gap-1 text-center">
             <Award className="h-4 w-4" />
-            <span className="w-full text-center">{t.localT('community.artworks') || 'Работы'}</span>
+            <span className="w-full text-center">{t.localT('community.artworks')}</span>
           </TabsTrigger>
           <TabsTrigger value="tournaments" className="flex items-center justify-center gap-1 text-center">
             <Trophy className="h-4 w-4" />
-            <span className="w-full text-center">{t.localT('community.tournaments') || 'Турниры'}</span>
+            <span className="w-full text-center">{t.localT('community.tournaments')}</span>
           </TabsTrigger>
           <TabsTrigger value="collaborations" className="flex items-center justify-center gap-1 text-center">
             <Users className="h-4 w-4" />
-            <span className="w-full text-center">{t.localT('community.collaborations') || 'Коллаборации'}</span>
+            <span className="w-full text-center">{t.localT('community.collaborations')}</span>
           </TabsTrigger>
         </TabsList>
         
@@ -168,11 +235,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
         </TabsContent>
         
         <TabsContent value="tournaments">
-          <Tournaments />
+          {/* Компонент Tournaments отображается в page.tsx */}
         </TabsContent>
         
         <TabsContent value="collaborations">
-          <Collaborations />
+          {/* Компонент Collaborations отображается в page.tsx */}
         </TabsContent>
       </Tabs>
       

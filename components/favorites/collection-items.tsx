@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getUserFavorites, removeArtworkFromCollection, addArtworkToCollection } from '@/services/api-service';
+import { getUserFavorites, removeArtworkFromCollection, addArtworkToCollection, getCollectionItems } from '@/services/api-service';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
