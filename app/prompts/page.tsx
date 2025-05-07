@@ -88,26 +88,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useLanguage, useLocalTranslation } from "@/components/language-context";
 
-interface Prompt {
-    id: string;
-    title: string;
-    text: string;
-    category: string;
-    tags: string[];
-    favorite: boolean;
-    rating: number;
-    createdAt: string;
-    updatedAt: string;
-    usageCount: number;
-    negative?: string;
-    parameters?: {
-        [key: string]: any;
-    };
-    notes?: string;
-    isPublic: boolean;
-    author?: string;
-}
-
 interface Category {
     id: string;
     name: string;
