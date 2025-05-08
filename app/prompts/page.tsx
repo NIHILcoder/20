@@ -1,6 +1,20 @@
 "use client";
 import { useScrollLock } from "@/components/hooks/useScrollLock";
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/components/auth-context";
+import { 
+    getPrompts, 
+    getPromptCategories, 
+    getPopularTags, 
+    createPrompt, 
+    updatePrompt, 
+    deletePrompt, 
+    toggleFavoritePrompt,
+    Prompt,
+    PromptFilters,
+    PaginationData
+} from "@/services/prompts-service";
+
 import {
     BookOpen,
     Plus,
@@ -102,18 +116,32 @@ interface Tag {
 }
 
 export default function PromptLibrary() {
+    const { user } = useAuth();
+    const userId = user?.id || 0;
+    
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState("all");
     const [activeTab, setActiveTab] = useState("my-prompts");
+    const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
-    const [sortBy, setSortBy] = useState("updated");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    const [sortBy, setSortBy] = useState<string>("updatedAt");
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
     const [promptDialogOpen, setPromptDialogOpen] = useState<boolean>(false);
     const [createPromptOpen, setCreatePromptOpen] = useState<boolean>(false);
     const [editMode, setEditMode] = useState(false);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [pagination, setPagination] = useState<PaginationData>({ 
+        total: 0, 
+        limit: 20, 
+        offset: 0, 
+        hasMore: false 
+    });
+    const [formError, setFormError] = useState<string | null>(null);
+    const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
     const { language } = useLanguage();
 
@@ -174,12 +202,23 @@ export default function PromptLibrary() {
             'prompts.details.tags': 'Tags',
             'prompts.details.category': 'Category',
             'prompts.details.created': 'Created',
+            'prompts.validation_error': 'Please fill in all required fields',
+            'prompts.save_error': 'Error saving prompt. Please try again.',
+            'prompts.update_success': 'Prompt updated successfully!',
+            'prompts.create_success': 'Prompt created successfully!',
+            'prompts.load_more': 'Load More',
+            'prompts.loading_more': 'Loading...',
+            'prompts.no_results.title': 'No prompts found',
+            'prompts.no_results.description': 'Try changing your search or filters',
+            'prompts.shared_publicly': 'This prompt is shared publicly',
             'prompts.details.parameters': 'Parameters',
             'prompts.template.use': 'Use Template',
-            'prompts.no_results.title': 'No prompts found',
-            'prompts.no_results.description': 'Try changing your search or filters'
+            'prompts.favorite': 'Favorite',
+            'prompts.unfavorite': 'Unfavorite',
         },
         ru: {
+            'prompts.favorite': 'В избранное',
+            'prompts.unfavorite': 'Из избранного',
             'prompts.title': 'Библиотека промптов',
             'prompts.subtitle': 'Управляйте, организуйте и делитесь вашими промптами для генерации изображений',
             'prompts.search': 'Поиск промптов...',
@@ -237,7 +276,14 @@ export default function PromptLibrary() {
             'prompts.details.parameters': 'Параметры',
             'prompts.template.use': 'Использовать шаблон',
             'prompts.no_results.title': 'Промпты не найдены',
-            'prompts.no_results.description': 'Попробуйте изменить поисковый запрос или фильтры'
+            'prompts.no_results.description': 'Попробуйте изменить поисковый запрос или фильтры',
+            'prompts.validation_error': 'Пожалуйста, заполните все обязательные поля',
+            'prompts.save_error': 'Ошибка при сохранении промпта. Пожалуйста, попробуйте снова.',
+            'prompts.update_success': 'Промпт успешно обновлен!',
+            'prompts.create_success': 'Промпт успешно создан!',
+            'prompts.load_more': 'Загрузить еще',
+            'prompts.loading_more': 'Загрузка...',
+            'prompts.shared_publicly': 'Этот промпт опубликован публично'
         }
     };
 
@@ -261,170 +307,83 @@ export default function PromptLibrary() {
     // Store references for DOM elements
     const tagInputRef = useRef<HTMLInputElement>(null);
 
-    // Mock data for categories
-    const categories: Category[] = [
-        { id: "all", name: localT('prompts.categories.all'), count: 42 },
-        { id: "portraits", name: "Portraits", count: 12, color: "#f97316" },
-        { id: "landscapes", name: "Landscapes", count: 8, color: "#84cc16" },
-        { id: "fantasy", name: "Fantasy", count: 7, color: "#8b5cf6" },
-        { id: "scifi", name: "Sci-Fi", count: 5, color: "#06b6d4" },
-        { id: "abstract", name: "Abstract", count: 4, color: "#ec4899" },
-        { id: "animals", name: "Animals", count: 3, color: "#f59e0b" },
-        { id: "architecture", name: "Architecture", count: 3, color: "#64748b" }
-    ];
-
-    const tags: Tag[] = [
-        { id: "detailed", name: "detailed", count: 28 },
-        { id: "photorealistic", name: "photorealistic", count: 22 },
-        { id: "8k", name: "8k", count: 18 },
-        { id: "cinematic", name: "cinematic", count: 15 },
-        { id: "colorful", name: "colorful", count: 14 },
-        { id: "dramatic", name: "dramatic", count: 12 },
-        { id: "professional", name: "professional", count: 10 },
-        { id: "sharp", name: "sharp focus", count: 9 },
-        { id: "sunlight", name: "sunlight", count: 8 },
-        { id: "sci-fi", name: "sci-fi", count: 7 },
-        { id: "medieval", name: "medieval", count: 6 },
-        { id: "vibrant", name: "vibrant", count: 5 }
-    ];
-
-    const generatePrompts = (): Prompt[] => {
-        const samplePrompts = [
-            {
-                title: "Serene Landscape",
-                text: "A serene landscape with mountains in the background, a calm lake reflecting the sky, surrounded by pine trees, golden hour lighting, highly detailed, 8k, photorealistic",
-                category: "landscapes",
-                tags: ["nature", "mountains", "detailed", "8k"],
-                negative: "blurry, oversaturated, low quality"
-            },
-            {
-                title: "Portrait of a Woman",
-                text: "Portrait of a young woman with blue eyes and long blonde hair, soft lighting, photorealistic, studio quality, detailed features, 8k resolution, professional photography",
-                category: "portraits",
-                tags: ["portrait", "photorealistic", "detailed", "8k"],
-                negative: "blurry, disfigured, disproportionate, low quality"
-            },
-            {
-                title: "Fantasy Castle",
-                text: "A majestic fantasy castle on a floating island, waterfalls cascading down the sides, surrounded by clouds, magical atmosphere, dramatic lighting, detailed architecture, cinematic shot",
-                category: "fantasy",
-                tags: ["castle", "fantasy", "dramatic", "cinematic"],
-                negative: "blurry, cartoon, anime, low quality"
-            },
-            {
-                title: "Cyberpunk Street",
-                text: "Cyberpunk night street scene with neon lights, futuristic buildings, flying cars, rainy atmosphere, reflective surfaces, high tech advertisements, highly detailed, cinematic lighting",
-                category: "scifi",
-                tags: ["cyberpunk", "city", "neon", "detailed"],
-                negative: "daylight, low buildings, rural, low resolution"
-            },
-            {
-                title: "Abstract Painting",
-                text: "Abstract painting with vibrant colors, flowing shapes and patterns, expressionist style, modern art, high resolution, detailed brush strokes, museum quality",
-                category: "abstract",
-                tags: ["abstract", "colorful", "vibrant", "artistic"],
-                negative: "photorealistic, defined shapes, people, faces"
-            },
-            {
-                title: "Medieval Town",
-                text: "A medieval European town with cobblestone streets, timber-framed buildings, a central marketplace, people in period clothing, misty morning atmosphere, highly detailed, cinematic composition",
-                category: "architecture",
-                tags: ["medieval", "town", "historical", "cinematic"],
-                negative: "modern elements, cars, technology, anachronisms"
-            },
-            {
-                title: "Underwater Scene",
-                text: "Vibrant coral reef underwater scene with colorful fish, sea turtles, rays of sunlight penetrating the water surface, clear blue water, photorealistic, highly detailed",
-                category: "landscapes",
-                tags: ["underwater", "ocean", "colorful", "detailed"],
-                negative: "above water, dark, murky, blurry"
-            },
-            {
-                title: "Magical Forest",
-                text: "An enchanted forest with giant glowing mushrooms, fairy lights floating between ancient trees, magical mist, moonlight filtering through the canopy, highly detailed, fantasy atmosphere",
-                category: "fantasy",
-                tags: ["forest", "magical", "night", "detailed"],
-                negative: "daylight, desert, urban, realistic"
-            }
-        ];
-
-        return samplePrompts.map((prompt, index) => {
-            const createdDate = new Date();
-            createdDate.setDate(createdDate.getDate() - Math.floor(Math.random() * 60));
-            const updatedDate = new Date(createdDate);
-            updatedDate.setDate(updatedDate.getDate() + Math.floor(Math.random() * 30));
-
-            return {
-                id: `prompt-${index + 1}`,
-                title: prompt.title,
-                text: prompt.text,
-                category: prompt.category,
-                tags: prompt.tags,
-                favorite: Math.random() > 0.7,
-                rating: Math.floor(Math.random() * 5) + 1,
-                createdAt: createdDate.toISOString(),
-                updatedAt: updatedDate.toISOString(),
-                usageCount: Math.floor(Math.random() * 50),
-                negative: prompt.negative,
-                parameters: {
-                    seed: Math.floor(Math.random() * 1000000),
-                    steps: 30,
-                    cfg: 7.5,
-                    sampler: "Euler a"
-                },
-                notes: Math.random() > 0.5 ? "This prompt works best with higher CFG values. Try different samplers for varied results." : "",
-                isPublic: Math.random() > 0.5
+    // Состояния для категорий и тегов
+    const [categories, setCategories] = useState<Category[]>([
+        { id: "all", name: localT('prompts.categories.all'), count: 0 }
+    ]);
+    
+    const [tags, setTags] = useState<Tag[]>([]);
+    
+    // Загрузка данных при монтировании компонента
+    useEffect(() => {
+        if (userId) {
+            loadPrompts();
+            loadCategories();
+            loadTags();
+        }
+    }, [userId]);
+    
+    // Загрузка промптов с учетом фильтров
+    const loadPrompts = async () => {
+        if (!userId) return;
+        
+        setIsLoading(true);
+        try {
+            const filters: PromptFilters = {
+                userId: Number(userId),
+                category: activeCategory !== 'all' ? activeCategory : undefined,
+                search: searchQuery || undefined,
+                sortBy: sortBy,
+                sortDirection: sortDirection,
+                limit: pagination.limit,
+                offset: pagination.offset,
+                favorites: showOnlyFavorites,
+                tab: activeTab as 'my-prompts' | 'community'
             };
-        });
+            
+            const response = await getPrompts(filters);
+            setPrompts(response.prompts);
+            setPagination(response.pagination);
+        } catch (error) {
+            console.error('Ошибка при загрузке промптов:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    // Загрузка категорий
+    const loadCategories = async () => {
+        try {
+            const categoriesData = await getPromptCategories();
+            setCategories([{ id: "all", name: localT('prompts.categories.all'), count: categoriesData.reduce((sum, cat) => sum + cat.count, 0) }, ...categoriesData]);
+        } catch (error) {
+            console.error('Ошибка при загрузке категорий:', error);
+        }
+    };
+    
+    // Загрузка тегов
+    const loadTags = async () => {
+        try {
+            const tagsData = await getPopularTags();
+            setTags(tagsData);
+        } catch (error) {
+            console.error('Ошибка при загрузке тегов:', error);
+        }
     };
 
-    const [prompts, setPrompts] = useState<Prompt[]>(generatePrompts());
-
-    // Community prompts mock data
-    const communityPrompts: Prompt[] = [
-        {
-            id: "community-1",
-            title: "Epic Dragon",
-            text: "Epic dragon perched on a mountain peak, breathing fire, scales glistening in the sunlight, majestic wings spread wide, detailed texture, fantasy atmosphere, cinematic lighting, 8k",
-            category: "fantasy",
-            tags: ["dragon", "fantasy", "epic", "detailed"],
-            favorite: false,
-            rating: 5,
-            createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            usageCount: 352,
-            isPublic: true,
-            author: "DragonMaster"
-        },
-        {
-            id: "community-2",
-            title: "Space Station",
-            text: "Futuristic space station orbiting Earth, detailed mechanical structures, solar panels, docking bays, Earth visible in the background, stars, cosmic atmosphere, sci-fi, 8k resolution",
-            category: "scifi",
-            tags: ["space", "sci-fi", "futuristic", "detailed"],
-            favorite: false,
-            rating: 4,
-            createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-            usageCount: 289,
-            isPublic: true,
-            author: "CosmicCreator"
-        },
-        {
-            id: "community-3",
-            title: "Renaissance Portrait",
-            text: "Renaissance style portrait in the manner of Leonardo da Vinci, young woman with enigmatic smile, detailed fabric, soft lighting, realistic skin texture, 16th century style, museum quality",
-            category: "portraits",
-            tags: ["renaissance", "portrait", "artistic", "historical"],
-            favorite: false,
-            rating: 5,
-            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            usageCount: 421,
-            isPublic: true,
-            author: "ArtisticSoul"
+    // Обновление фильтров и загрузка промптов при изменении параметров
+    useEffect(() => {
+        if (userId) {
+            // Сбрасываем пагинацию при изменении фильтров
+            setPagination(prev => ({ ...prev, offset: 0 }));
+            loadPrompts();
         }
-    ];
+    }, [activeCategory, searchQuery, sortBy, sortDirection, showOnlyFavorites, activeTab, userId]);
+    
+    // Установка отфильтрованных промптов
+    useEffect(() => {
+        setFilteredPrompts(prompts);
+    }, [prompts]);
 
     const promptTemplates = [
         {
@@ -447,49 +406,31 @@ export default function PromptLibrary() {
         }
     ];
 
-    useEffect(() => {
-        let filtered = [...prompts];
-        if (activeCategory !== "all") {
-            filtered = filtered.filter(prompt => prompt.category === activeCategory);
+    // Обработчик изменения фильтров
+    const handleFilterChange = (type: string, value: any) => {
+        switch (type) {
+            case 'category':
+                setActiveCategory(value);
+                break;
+            case 'search':
+                setSearchQuery(value);
+                break;
+            case 'sort':
+                setSortBy(value);
+                break;
+            case 'direction':
+                setSortDirection(value as 'asc' | 'desc');
+                break;
+            case 'favorites':
+                setShowOnlyFavorites(value);
+                break;
+            case 'tab':
+                setActiveTab(value);
+                break;
+            default:
+                break;
         }
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(prompt =>
-                prompt.title.toLowerCase().includes(query) ||
-                prompt.text.toLowerCase().includes(query) ||
-                prompt.tags.some(tag => tag.toLowerCase().includes(query))
-            );
-        }
-        if (showOnlyFavorites) {
-            filtered = filtered.filter(prompt => prompt.favorite);
-        }
-
-        filtered.sort((a, b) => {
-            let comparison = 0;
-            switch (sortBy) {
-                case "title":
-                    comparison = a.title.localeCompare(b.title);
-                    break;
-                case "created":
-                    comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-                    break;
-                case "updated":
-                    comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-                    break;
-                case "usage":
-                    comparison = a.usageCount - b.usageCount;
-                    break;
-                case "rating":
-                    comparison = a.rating - b.rating;
-                    break;
-                default:
-                    comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-            }
-            return sortDirection === "asc" ? comparison : -comparison;
-        });
-
-        setFilteredPrompts(filtered);
-    }, [prompts, activeCategory, searchQuery, sortBy, sortDirection, showOnlyFavorites]);
+    };    
 
     const handleSelectPrompt = (prompt: Prompt) => {
         setSelectedPrompt(prompt);
@@ -497,22 +438,43 @@ export default function PromptLibrary() {
         setEditMode(false);
     };
 
-    const handleToggleFavorite = (e: React.MouseEvent, promptId: string) => {
+    const handleToggleFavorite = async (e: React.MouseEvent, promptId: string) => {
         e.stopPropagation();
-        setPrompts(prev =>
-            prev.map(p => p.id === promptId ? { ...p, favorite: !p.favorite } : p)
-        );
+        if (!userId) return;
+        
+        try {
+            const result = await toggleFavoritePrompt(promptId, userId);
+            setPrompts(prev =>
+                prev.map(p => p.id === promptId ? { ...p, favorite: result.favorite } : p)
+            );
+        } catch (error) {
+            console.error('Ошибка при изменении статуса избранного:', error);
+        }
     };
 
-    const toggleFavorite = (promptId: string) => {
-        setPrompts(prev =>
-            prev.map(p => p.id === promptId ? { ...p, favorite: !p.favorite } : p)
-        );
+    const toggleFavorite = async (promptId: string) => {
+        if (!userId) return;
+        
+        try {
+            const result = await toggleFavoritePrompt(promptId, userId);
+            setPrompts(prev =>
+                prev.map(p => p.id === promptId ? { ...p, favorite: result.favorite } : p)
+            );
+        } catch (error) {
+            console.error('Ошибка при изменении статуса избранного:', error);
+        }
     };
 
-    const handleDeletePrompt = (promptId: string) => {
-        setPrompts(prev => prev.filter(p => p.id !== promptId));
-        setPromptDialogOpen(false);
+    const handleDeletePrompt = async (promptId: string) => {
+        if (!userId) return;
+        
+        try {
+            await deletePrompt(promptId, userId);
+            setPrompts(prev => prev.filter(p => p.id !== promptId));
+            setPromptDialogOpen(false);
+        } catch (error) {
+            console.error('Ошибка при удалении промпта:', error);
+        }
     };
 
     const handleCopyPrompt = (text: string) => {
@@ -570,19 +532,21 @@ export default function PromptLibrary() {
     };
 
     // Save prompt (new or edited)
-    const handleSavePrompt = () => {
-        if (formState.title.trim() === "" || formState.text.trim() === "") {
-            // Could show validation error
+    const handleSavePrompt = async () => {
+        setFormError(null);
+        setFormSuccess(null);
+        
+        if (formState.title.trim() === "" || formState.text.trim() === "" || !userId) {
+            setFormError(localT('prompts.validation_error'));
             return;
         }
 
-        const now = new Date().toISOString();
-
-        if (editMode && selectedPrompt) {
-            // Update existing prompt
-            setPrompts(prev =>
-                prev.map(p => p.id === selectedPrompt.id ? {
-                    ...p,
+        try {
+            if (editMode && selectedPrompt) {
+                // Update existing prompt
+                const updatedPrompt = await updatePrompt({
+                    promptId: selectedPrompt.id,
+                    userId: Number(userId),
                     title: formState.title,
                     text: formState.text,
                     category: formState.category,
@@ -590,35 +554,188 @@ export default function PromptLibrary() {
                     negative: formState.negative,
                     notes: formState.notes,
                     isPublic: formState.isPublic,
-                    updatedAt: now
-                } : p)
-            );
-        } else {
-            // Create new prompt
-            const newPrompt: Prompt = {
-                id: `prompt-${Date.now()}`,
-                title: formState.title,
-                text: formState.text,
-                category: formState.category,
-                tags: formState.tags,
-                favorite: false,
-                rating: 0,
-                createdAt: now,
-                updatedAt: now,
-                usageCount: 0,
-                negative: formState.negative,
-                notes: formState.notes,
-                isPublic: formState.isPublic
-            };
-            setPrompts(prev => [newPrompt, ...prev]);
+                    parameters: selectedPrompt.parameters
+                });
+                
+                setPrompts(prev =>
+                    prev.map(p => p.id === selectedPrompt.id ? updatedPrompt : p)
+                );
+                setFormSuccess(localT('prompts.update_success'));
+                
+                // Закрываем диалог редактирования через небольшую задержку
+                setTimeout(() => {
+                    resetForm();
+                    setPromptDialogOpen(false);
+                    setCreatePromptOpen(false);
+                }, 1500);
+            } else {
+                // Create new prompt
+                const newPrompt = await createPrompt({
+                    userId: Number(userId),
+                    title: formState.title,
+                    text: formState.text,
+                    category: formState.category,
+                    tags: formState.tags,
+                    negative: formState.negative,
+                    notes: formState.notes,
+                    isPublic: formState.isPublic
+                });
+                
+                setPrompts(prev => [newPrompt, ...prev]);
+                setFormSuccess(localT('prompts.create_success'));
+                
+                // Закрываем диалог создания через небольшую задержку
+                setTimeout(() => {
+                    resetForm();
+                    setCreatePromptOpen(false);
+                }, 1500);
+            }
+        } catch (error) {
+            console.error('Ошибка при сохранении промпта:', error);
+            setFormError(localT('prompts.save_error'));
         }
-
-        resetForm();
-        setPromptDialogOpen(false);
     };
+    
+    // Рендеринг списка промптов
+    const renderPromptsList = () => {
+        if (isLoading) {
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                        <Card key={index} className="overflow-hidden animate-pulse">
+                            <CardHeader className="pb-2">
+                                <div className="h-6 bg-muted rounded w-3/4"></div>
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                                <div className="h-20 bg-muted rounded w-full mb-2"></div>
+                                <div className="flex gap-2">
+                                    <div className="h-5 bg-muted rounded w-16"></div>
+                                    <div className="h-5 bg-muted rounded w-16"></div>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="flex justify-between">
+                                <div className="h-4 bg-muted rounded w-24"></div>
+                                <div className="h-8 bg-muted rounded w-8"></div>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            );
+        }
+        
+        if (filteredPrompts.length === 0) {
+            return (
+                <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">{localT('prompts.no_results.title')}</h3>
+                    <p className="text-muted-foreground mb-6">{localT('prompts.no_results.description')}</p>
+                    <Button variant="outline" onClick={() => {
+                        setSearchQuery("");
+                        setActiveCategory("all");
+                        setShowOnlyFavorites(false);
+                    }}>
+                        {localT('prompts.clear_filters')}
+                    </Button>
+                </div>
+            );
+        }
+        
+        return (
+            <>
+                <div className={cn(
+                    viewMode === "grid" 
+                        ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+                        : "flex flex-col space-y-4"
+                )}>
+                    {filteredPrompts.map((prompt) => (
+                        <AnimatedCard key={prompt.id} className="overflow-hidden group cursor-pointer" onClick={() => handleSelectPrompt(prompt)}>
+                            <CardHeader className="pb-2">
+                                <div className="flex justify-between items-start">
+                                    <CardTitle className="text-lg">{prompt.title}</CardTitle>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                        onClick={(e) => handleToggleFavorite(e, prompt.id)}
+                                    >
+                                        {prompt.favorite ? (
+                                            <Star className="h-5 w-5 fill-primary text-primary" />
+                                        ) : (
+                                            <Star className="h-5 w-5" />
+                                        )}
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                                <p className="text-sm text-muted-foreground line-clamp-3">{prompt.text}</p>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    {prompt.tags.slice(0, 3).map((tag, index) => (
+                                        <AnimatedBadge key={index} className="text-xs">
+                                            {tag}
+                                        </AnimatedBadge>
+                                    ))}
+                                    {prompt.tags.length > 3 && (
+                                        <Badge variant="outline" className="text-xs">+{prompt.tags.length - 3}</Badge>
+                                    )}
+                                </div>
+                            </CardContent>
+                            <CardFooter className="flex justify-between pt-2">
+                                <div className="flex items-center text-xs text-muted-foreground">
+                                    <Tag className="h-3 w-3 mr-1" />
+                                    {prompt.category}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {prompt.isPublic && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="text-xs flex items-center text-muted-foreground">
+                                                        <Share2 className="h-3 w-3 mr-1" />
+                                                    </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{localT('prompts.shared_publicly')}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                    <div className="text-xs flex items-center text-muted-foreground">
+                                        <MessageSquare className="h-3 w-3 mr-1" />
+                                        {prompt.usageCount}
+                                    </div>
+                                </div>
+                            </CardFooter>
+                        </AnimatedCard>
+                    ))}
+                </div>
+                
+                {pagination.hasMore && (
+                    <div className="flex justify-center mt-8">
+                        <Button 
+                            variant="outline" 
+                            onClick={handleLoadMorePrompts} 
+                            disabled={isLoadingMore}
+                            className="min-w-[200px]"
+                        >
+                            {isLoadingMore ? (
+                                <>
+                                    <span className="animate-spin mr-2">⏳</span>
+                                    {localT('prompts.loading_more')}
+                                </>
+                            ) : (
+                                localT('prompts.load_more')
+                            )}
+                        </Button>
+                    </div>
+                )}
+            </>
+        );
+    };
+    
 
     // Format date for display
-    const formatDate = (dateString: string) => {
+    const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
         const date = new Date(dateString);
         return new Intl.DateTimeFormat('en-US', {
             month: 'short',
@@ -629,32 +746,62 @@ export default function PromptLibrary() {
 
     // Get active prompt list based on tab
     const getActivePromptList = () => {
-        return activeTab === "my-prompts" ? filteredPrompts : communityPrompts;
+        return filteredPrompts;
+    };
+    
+    // Загрузка следующей страницы промптов
+    const handleLoadMorePrompts = async () => {
+        if (pagination.hasMore && !isLoadingMore) {
+            setIsLoadingMore(true);
+            try {
+                const newOffset = pagination.offset + pagination.limit;
+                const filters: PromptFilters = {
+                    userId: Number(userId),
+                    category: activeCategory !== 'all' ? activeCategory : undefined,
+                    search: searchQuery || undefined,
+                    sortBy: sortBy,
+                    sortDirection: sortDirection,
+                    limit: pagination.limit,
+                    offset: newOffset,
+                    favorites: showOnlyFavorites,
+                    tab: activeTab as 'my-prompts' | 'community'
+                };
+                
+                const response = await getPrompts(filters);
+                setPrompts(prev => [...prev, ...response.prompts]);
+                setPagination(response.pagination);
+            } catch (error) {
+                console.error('Ошибка при загрузке дополнительных промптов:', error);
+            } finally {
+                setIsLoadingMore(false);
+            }
+        }
     };
 
     const renderStarRating = (rating: number) => {
         const stars = [];
         const fullStars = Math.floor(rating);
         const hasHalfStar = rating % 1 >= 0.5;
-
+    
         for (let i = 0; i < fullStars; i++) {
             stars.push(<Star key={`full-${i}`} className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />);
         }
-
+    
         if (hasHalfStar) {
             stars.push(<StarHalf key="half" className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />);
         }
-
+    
         const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
         for (let i = 0; i < emptyStars; i++) {
             stars.push(<Star key={`empty-${i}`} className="h-3.5 w-3.5 text-muted-foreground" />);
         }
-
+        
         return <div className="flex">{stars}</div>;
-    };
+    }; 
 
     return (
         <div className="container relative mx-auto py-8">
+            <EnhancedParticlesBackground variant="bubbles" density={50} />
             <EnhancedParticlesBackground variant="bubbles" density={50} />
 
             <div className="mb-8 space-y-4">
@@ -850,7 +997,7 @@ export default function PromptLibrary() {
                     </div>
                 </div>
             </div>
-
+        
             <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
 
                 <div className="md:col-span-1 space-y-6">
@@ -1018,406 +1165,21 @@ export default function PromptLibrary() {
                             </div>
                         </div>
                         <TabsContent value="my-prompts" className="mt-6">
-                            {getActivePromptList().length === 0 ? (
-                                <div className="flex flex-col items-center justify-center p-12 border rounded-lg border-dashed bg-muted/20">
-                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                                        <BookOpen className="h-6 w-6 text-muted-foreground" />
-                                    </div>
-                                    <h3 className="text-lg font-medium mb-2">{localT('prompts.no_prompts')}</h3>
-                                    <p className="text-muted-foreground text-center max-w-xs mb-4">
-                                        {searchQuery || activeCategory !== "all" || showOnlyFavorites
-                                            ? localT('prompts.try_changing')
-                                            : localT('prompts.create_prompt')
-                                        }
-                                    </p>
-                                    {searchQuery || activeCategory !== "all" || showOnlyFavorites ? (
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => {
-                                                setSearchQuery("");
-                                                setActiveCategory("all");
-                                                setShowOnlyFavorites(false);
-                                            }}
-                                        >
-                                            {localT('prompts.clear_filters')}
-                                        </Button>
-                                    ) : (
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button>
-                                                    <Plus className="mr-2 h-4 w-4" />
-                                                    {localT('prompts.create_prompt')}
-                                                </Button>
-                                            </DialogTrigger>
-                                        </Dialog>
-                                    )}
-                                </div>
-                            ) : viewMode === "grid" ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {getActivePromptList().map((prompt, i) => (
-                                        <AnimatedCard
-                                            key={prompt.id}
-                                            className="overflow-hidden cursor-pointer group"
-                                            onClick={() => handleSelectPrompt(prompt)}
-                                        >
-                                            <div className="p-4">
-                                                <div className="flex items-start justify-between">
-                                                    <h3 className="font-medium line-clamp-1">{prompt.title}</h3>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-muted-foreground"
-                                                        onClick={(e) => handleToggleFavorite(e, prompt.id)}
-                                                    >
-                                                        <Star
-                                                            className={cn(
-                                                                "h-4 w-4",
-                                                                prompt.favorite ? "fill-yellow-500 text-yellow-500" : ""
-                                                            )}
-                                                        />
-                                                    </Button>
-                                                </div>
-                                                <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
-                                                    {prompt.text}
-                                                </p>
-                                                {prompt.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-2">
-                                                        {prompt.tags.slice(0, 3).map(tag => (
-                                                            <Badge key={tag} variant="secondary" className="text-xs">
-                                                                {tag}
-                                                            </Badge>
-                                                        ))}
-                                                        {prompt.tags.length > 3 && (
-                                                            <Badge variant="outline" className="text-xs">
-                                                                +{prompt.tags.length - 3}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center justify-between p-3 bg-muted/30 border-t text-xs text-muted-foreground">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex items-center gap-1">
-                                                        <ThumbsUp className="h-3.5 w-3.5" />
-                                                        <span>{prompt.usageCount}</span>
-                                                    </div>
-                                                    <span>·</span>
-                                                    <span>{formatDate(prompt.updatedAt)}</span>
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleCopyPrompt(prompt.text);
-                                                                    }}
-                                                                >
-                                                                    <Copy className="h-3.5 w-3.5" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>{localT('prompts.copy_prompt')}</TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-6 w-6"
-                                                            >
-                                                                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5">
-                                                                    <path d="M3.625 7.5C3.625 8.12132 3.12132 8.625 2.5 8.625C1.87868 8.625 1.375 8.12132 1.375 7.5C1.375 6.87868 1.87868 6.375 2.5 6.375C3.12132 6.375 3.625 6.87868 3.625 7.5ZM8.625 7.5C8.625 8.12132 8.12132 8.625 7.5 8.625C6.87868 8.625 6.375 8.12132 6.375 7.5C6.375 6.87868 6.87868 6.375 7.5 6.375C8.12132 6.375 8.625 6.87868 8.625 7.5ZM13.625 7.5C13.625 8.12132 13.1213 8.625 12.5 8.625C11.8787 8.625 11.375 8.12132 11.375 7.5C11.375 6.87868 11.8787 6.375 12.5 6.375C13.1213 6.375 13.625 6.87868 13.625 7.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-                                                                </svg>
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleCopyPrompt(prompt.text);
-                                                                }}
-                                                            >
-                                                                <Copy className="mr-2 h-4 w-4" />
-                                                                {localT('prompts.copy_prompt')}
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleSelectPrompt(prompt);
-                                                                    startEditPrompt();
-                                                                }}
-                                                            >
-                                                                <Edit className="mr-2 h-4 w-4" />
-                                                                {localT('prompts.edit')}
-                                                            </DropdownMenuItem>
-                                                            {prompt.isPublic ? (
-                                                                <DropdownMenuItem
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setPrompts(prev => prev.map(p =>
-                                                                            p.id === prompt.id ? { ...p, isPublic: false } : p
-                                                                        ));
-                                                                    }}
-                                                                >
-                                                                    <Share2 className="mr-2 h-4 w-4" />
-                                                                    {localT('prompts.make_private')}
-                                                                </DropdownMenuItem>
-                                                            ) : (
-                                                                <DropdownMenuItem
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setPrompts(prev => prev.map(p =>
-                                                                            p.id === prompt.id ? { ...p, isPublic: true } : p
-                                                                        ));
-                                                                    }}
-                                                                >
-                                                                    <Share2 className="mr-2 h-4 w-4" />
-                                                                    {localT('prompts.share')}
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            <DropdownMenuSeparator />
-                                                            <DropdownMenuItem
-                                                                className="text-destructive"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDeletePrompt(prompt.id);
-                                                                }}
-                                                            >
-                                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                                {localT('prompts.delete')}
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            </div>
-                                        </AnimatedCard>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {getActivePromptList().map((prompt, i) => (
-                                        <AnimatedCard
-                                            key={prompt.id}
-                                            className="overflow-hidden cursor-pointer group"
-                                            onClick={() => handleSelectPrompt(prompt)}
-                                        >
-                                            <div className="flex justify-between p-4">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="font-medium truncate">{prompt.title}</h3>
-                                                        {prompt.favorite && (
-                                                            <Star className="h-4 w-4 fill-yellow-500 text-yellow-500 flex-shrink-0" />
-                                                        )}
-                                                        {prompt.category && (
-                                                            <Badge variant="outline" className="hidden sm:inline-flex">
-                                                                {categories.find(c => c.id === prompt.category)?.name || prompt.category}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm text-muted-foreground mt-1 line-clamp-1 sm:line-clamp-2">
-                                                        {prompt.text}
-                                                    </p>
-                                                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                                        <div className="flex items-center gap-1">
-                                                            <MessageSquare className="h-3.5 w-3.5" />
-                                                            <span>{prompt.tags.length} tags</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <ThumbsUp className="h-3.5 w-3.5" />
-                                                            <span>{prompt.usageCount} uses</span>
-                                                        </div>
-                                                        <span className="hidden sm:inline-block">
-                                                            Updated {formatDate(prompt.updatedAt)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col justify-between ml-4">
-                                                    <div className="flex items-center gap-2">
-                                                        {renderStarRating(prompt.rating)}
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7 text-muted-foreground"
-                                                            onClick={(e) => handleToggleFavorite(e, prompt.id)}
-                                                        >
-                                                            <Star
-                                                                className={cn(
-                                                                    "h-4 w-4",
-                                                                    prompt.favorite ? "fill-yellow-500 text-yellow-500" : ""
-                                                                )}
-                                                            />
-                                                        </Button>
-                                                    </div>
-                                                    <div className="flex gap-1 mt-auto">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleCopyPrompt(prompt.text);
-                                                            }}
-                                                        >
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleSelectPrompt(prompt);
-                                                                startEditPrompt();
-                                                            }}
-                                                        >
-                                                            <Edit className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-7 w-7"
-                                                                >
-                                                                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5">
-                                                                        <path d="M3.625 7.5C3.625 8.12132 3.12132 8.625 2.5 8.625C1.87868 8.625 1.375 8.12132 1.375 7.5C1.375 6.87868 1.87868 6.375 2.5 6.375C3.12132 6.375 3.625 6.87868 3.625 7.5ZM8.625 7.5C8.625 8.12132 8.12132 8.625 7.5 8.625C6.87868 8.625 6.375 8.12132 6.375 7.5C6.375 6.87868 6.87868 6.375 7.5 6.375C8.12132 6.375 8.625 6.87868 8.625 7.5ZM13.625 7.5C13.625 8.12132 13.1213 8.625 12.5 8.625C11.8787 8.625 11.375 8.12132 11.375 7.5C11.375 6.87868 11.8787 6.375 12.5 6.375C13.1213 6.375 13.625 6.87868 13.625 7.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-                                                                    </svg>
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleCopyPrompt(prompt.text);
-                                                                    }}
-                                                                >
-                                                                    <Copy className="mr-2 h-4 w-4" />
-                                                                    {localT('prompts.copy_prompt')}
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setPrompts(prev => prev.map(p =>
-                                                                            p.id === prompt.id ? { ...p, isPublic: !p.isPublic } : p
-                                                                        ));
-                                                                    }}
-                                                                >
-                                                                    <Share2 className="mr-2 h-4 w-4" />
-                                                                    {prompt.isPublic ? localT('prompts.make_private') : localT('prompts.share')}
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuSeparator />
-                                                                <DropdownMenuItem
-                                                                    className="text-destructive"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleDeletePrompt(prompt.id);
-                                                                    }}
-                                                                >
-                                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                                    {localT('prompts.delete')}
-                                                                </DropdownMenuItem>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </AnimatedCard>
-                                    ))}
-                                </div>
-                            )}
+                            {renderPromptsList()}
                         </TabsContent>
-                        <TabsContent value="community">
-                            <div className="bg-muted/30 rounded-lg p-4 mb-6">
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                    <div className="p-2 bg-primary/10 rounded-full">
-                                        <Info className="h-6 w-6 text-primary" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-lg font-medium">{localT('prompts.community')}</h3>
-                                        <p className="text-muted-foreground">
-                                            {localT('prompts.subtitle')}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {communityPrompts.map((prompt, index) => (
-                                    <AnimatedCard
-                                        key={prompt.id}
-                                        className="overflow-hidden cursor-pointer group border-primary/10"
-                                        onClick={() => handleSelectPrompt(prompt)}
-                                    >
-                                        <div className="p-4">
-                                            <div className="flex items-start justify-between">
-                                                <h3 className="font-medium line-clamp-1">{prompt.title}</h3>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 text-muted-foreground"
-                                                    onClick={(e) => handleToggleFavorite(e, prompt.id)}
-                                                >
-                                                    <Star
-                                                        className={cn(
-                                                            "h-4 w-4",
-                                                            prompt.favorite ? "fill-yellow-500 text-yellow-500" : ""
-                                                        )}
-                                                    />
-                                                </Button>
-                                            </div>
-                                            <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
-                                                {prompt.text}
-                                            </p>
-                                            {prompt.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-1 mt-2">
-                                                    {prompt.tags.slice(0, 3).map(tag => (
-                                                        <Badge key={tag} variant="secondary" className="text-xs">
-                                                            {tag}
-                                                        </Badge>
-                                                    ))}
-                                                    {prompt.tags.length > 3 && (
-                                                        <Badge variant="outline" className="text-xs">
-                                                            +{prompt.tags.length - 3}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center justify-between p-3 bg-muted/30 border-t text-xs text-muted-foreground">
-                                            <div className="flex items-center gap-2">
-                                                {prompt.author && (
-                                                    <>
-                                                        <span>By {prompt.author}</span>
-                                                        <span>·</span>
-                                                    </>
-                                                )}
-                                                <div className="flex items-center gap-1">
-                                                    <ThumbsUp className="h-3.5 w-3.5" />
-                                                    <span>{prompt.usageCount}</span>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                {renderStarRating(prompt.rating)}
-                                            </div>
-                                        </div>
-                                    </AnimatedCard>
-                                ))}
-                            </div>
+                        <TabsContent value="community" className="mt-6">
+                            {renderPromptsList()}
                         </TabsContent>
                     </Tabs>
                 </div>
-            </div>
+             </div>
 
             {selectedPrompt && (
                 <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
                     <DialogContent className="sm:max-w-[600px]">
                         <DialogHeader>
                             <DialogTitle className="flex items-center justify-between">
-                                <span>{editMode ? localT('prompts.edit_prompt') : selectedPrompt.title}</span>
+                                <span>{editMode ? localT('prompts.edit_prompt') : selectedPrompt?.title}</span>
                                 {!editMode && (
                                     <Button
                                         variant="ghost"
@@ -1541,12 +1303,12 @@ export default function PromptLibrary() {
                                             <div className="space-y-4">
                                                 <div>
                                                     <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.prompt')}</Label>
-                                                    <p className="text-sm">{selectedPrompt.text}</p>
+                                                    <p className="text-sm">{selectedPrompt?.text}</p>
                                                 </div>
-                                                {selectedPrompt.negative && (
+                                                {selectedPrompt?.negative && (
                                                     <div>
                                                         <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.negative')}</Label>
-                                                        <p className="text-sm">{selectedPrompt.negative}</p>
+                                                        <p className="text-sm">{selectedPrompt?.negative}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -1557,19 +1319,19 @@ export default function PromptLibrary() {
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.category')}</Label>
                                             <Badge variant="outline">
-                                                {categories.find(c => c.id === selectedPrompt.category)?.name || selectedPrompt.category}
+                                                {categories.find(c => c.id === selectedPrompt?.category)?.name || selectedPrompt?.category || ''}
                                             </Badge>
                                         </div>
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.created')}</Label>
-                                            <p className="text-sm">{formatDate(selectedPrompt.createdAt)}</p>
+                                            <p className="text-sm">{formatDate(selectedPrompt?.createdAt)}</p>
                                         </div>
                                     </div>
 
                                     <div>
                                         <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.tags')}</Label>
                                         <div className="flex flex-wrap gap-1">
-                                            {selectedPrompt.tags.map(tag => (
+                                            {selectedPrompt?.tags?.map(tag => (
                                                 <Badge key={tag} variant="secondary" className="text-xs">
                                                     {tag}
                                                 </Badge>
@@ -1577,18 +1339,18 @@ export default function PromptLibrary() {
                                         </div>
                                     </div>
 
-                                    {selectedPrompt.notes && (
+                                    {selectedPrompt?.notes && (
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.form.notes')}</Label>
-                                            <p className="text-sm bg-muted/20 p-2 rounded">{selectedPrompt.notes}</p>
+                                            <p className="text-sm bg-muted/20 p-2 rounded">{selectedPrompt?.notes}</p>
                                         </div>
                                     )}
 
-                                    {selectedPrompt.parameters && (
+                                    {selectedPrompt?.parameters && (
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-1 block">{localT('prompts.details.parameters')}</Label>
                                             <div className="grid grid-cols-2 gap-2 text-sm">
-                                                {Object.entries(selectedPrompt.parameters).map(([key, value]) => (
+                                                {Object.entries(selectedPrompt?.parameters || {}).map(([key, value]) => (
                                                     <div key={key} className="flex justify-between">
                                                         <span className="font-medium">{key}:</span>
                                                         <span>{value}</span>
@@ -1603,7 +1365,7 @@ export default function PromptLibrary() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleCopyPrompt(selectedPrompt.text)}
+                                            onClick={() => handleCopyPrompt(selectedPrompt?.text || '')}
                                         >
                                             <Copy className="mr-2 h-4 w-4" />
                                             {localT('prompts.copy_prompt')}
@@ -1612,24 +1374,24 @@ export default function PromptLibrary() {
                                             variant="outline"
                                             size="sm"
                                             className={cn(
-                                                selectedPrompt.favorite ? "bg-primary/5 border-primary/20" : ""
+                                                selectedPrompt?.favorite ? "bg-primary/5 border-primary/20" : ""
                                             )}
-                                            onClick={() => toggleFavorite(selectedPrompt.id)}
+                                            onClick={() => toggleFavorite(selectedPrompt?.id || '')}
                                         >
                                             <Star
                                                 className={cn(
                                                     "mr-2 h-4 w-4",
-                                                    selectedPrompt.favorite ? "fill-yellow-500 text-yellow-500" : ""
+                                                    selectedPrompt?.favorite ? "fill-yellow-500 text-yellow-500" : ""
                                                 )}
                                             />
-                                            {selectedPrompt.favorite ? localT('prompts.unfavorite') : localT('prompts.favorite')}
+                                            {selectedPrompt?.favorite ? localT('prompts.unfavorite') : localT('prompts.favorite')}
                                         </Button>
                                     </div>
                                     <Button
                                         variant="default"
                                         onClick={() => {
                                             setPrompts(prev =>
-                                                prev.map(p => p.id === selectedPrompt.id ?
+                                                prev.map(p => p.id === selectedPrompt?.id ?
                                                     { ...p, usageCount: p.usageCount + 1 } : p
                                                 )
                                             );

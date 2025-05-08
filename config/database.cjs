@@ -1,22 +1,16 @@
 /**
- * Конфигурация подключения к базе данных PostgreSQL
+ * Конфигурация подключения к базе данных PostgreSQL (CommonJS версия)
  */
 
-export default {
-  // Параметры подключения к базе данных
-  connection: {
+module.exports = {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
     database: process.env.DB_NAME || 'visiomera',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '1',
     ssl: process.env.DB_SSL === 'true' ? true : false,
-  },
-  
-  // Настройки пула соединений
-  pool: {
-    min: 2,
+    
+    // Настройки пула соединений
     max: 10,
     idleTimeoutMillis: 30000
-  }
-};
+  };
