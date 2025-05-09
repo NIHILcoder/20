@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userIdString = searchParams.get('userId');
     const category = searchParams.get('category');
     const search = searchParams.get('search');
     const sortBy = searchParams.get('sortBy') || 'updatedAt';
@@ -23,8 +23,12 @@ export async function GET(request: NextRequest) {
     const tab = searchParams.get('tab') || 'my-prompts';
 
     // Проверка на наличие userId
-    if (!userId) {
+    if (!userIdString) {
       return NextResponse.json({ error: 'UserId is required' }, { status: 400 });
+    }
+    const userId = parseInt(userIdString, 10);
+    if (isNaN(userId)) {
+      return NextResponse.json({ error: 'Invalid userId format' }, { status: 400 });
     }
 
     // Базовый запрос
@@ -44,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     // Условия WHERE
     const whereConditions = [];
-    const queryParams = [userId];
+    const queryParams: (string | number)[] = [userId];
     let paramIndex = 2;
 
     // Фильтр по владельцу или публичным промптам
@@ -97,7 +101,7 @@ export async function GET(request: NextRequest) {
 
     // Добавляем пагинацию
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    queryParams.push(limit.toString(), offset.toString());
+    queryParams.push(limit, offset);
 
     // Выполняем запрос
     const result = await db.query(query, queryParams);
@@ -134,15 +138,23 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    const { userId, title, text, category, tags, negative, notes, isPublic, parameters } = data;
+    const { userId: userIdFromRequest, title, text, category, tags, negative, notes, isPublic, parameters } = data;
 
     // Проверка обязательных полей
-    if (!userId || !title || !text) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (userIdFromRequest === undefined || userIdFromRequest === null || !title || !text) {
+      return NextResponse.json({ error: 'Missing required fields (userId, title, text)' }, { status: 400 });
     }
 
+    // userIdFromRequest должен быть числом, так как frontend (prompts-service.ts) отправляет его как number
+    if (typeof userIdFromRequest !== 'number') {
+      return NextResponse.json({ error: 'Invalid userId type in request body, expected number' }, { status: 400 });
+    }
+    const userId = userIdFromRequest;
+
     // Проверка прав доступа
-    if (session.user?.id !== userId) {
+    // Предполагаем, что session.user.id также является числом. Если это не так, потребуется приведение типов.
+    const sessionUserId = session.user?.id;
+    if (typeof sessionUserId !== 'number' || sessionUserId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -156,7 +168,7 @@ export async function POST(request: NextRequest) {
     `;
 
     const result = await db.query(query, [
-      userId.toString(),
+      userId, // Используем числовой userId
       title,
       text,
       category || null,

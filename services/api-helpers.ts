@@ -10,7 +10,17 @@
  */
 export async function fetchWithErrorHandling(url: string, options?: RequestInit) {
   try {
-    const response = await fetch(url, options);
+    // Добавляем credentials: 'include' для передачи куки с сессией
+    const fetchOptions: RequestInit = {
+      ...options,
+      credentials: 'include', // Важно для передачи куки аутентификации
+      headers: {
+        ...options?.headers,
+        'Content-Type': 'application/json',
+      }
+    };
+    
+    const response = await fetch(url, fetchOptions);
     
     // Получаем данные ответа
     const data = await response.json();

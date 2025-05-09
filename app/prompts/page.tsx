@@ -652,6 +652,7 @@ export default function PromptLibrary() {
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
                                     <CardTitle className="text-lg">{prompt.title}</CardTitle>
+                                    <p className="text-sm text-muted-foreground">Автор: {prompt.author}</p>
                                     <Button
                                         variant="ghost"
                                         size="icon"
