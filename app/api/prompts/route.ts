@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { withAuth } from '@/middleware/auth';
 
 // Обработчик GET-запросов для получения промптов
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Информация о пользователе добавляется в запрос middleware аутентификации
+    const user = request.user;
 
     const { searchParams } = new URL(request.url);
     const userIdString = searchParams.get('userId');
@@ -130,12 +127,10 @@ export async function GET(request: NextRequest) {
 }
 
 // Обработчик POST-запросов для создания промптов
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Информация о пользователе добавляется в запрос middleware аутентификации
+    const user = request.user;
 
     const data = await request.json();
     const { userId: userIdFromRequest, title, text, category, tags, negative, notes, isPublic, parameters } = data;
@@ -152,9 +147,8 @@ export async function POST(request: NextRequest) {
     const userId = userIdFromRequest;
 
     // Проверка прав доступа
-    // Предполагаем, что session.user.id также является числом. Если это не так, потребуется приведение типов.
-    const sessionUserId = session.user?.id;
-    if (typeof sessionUserId !== 'number' || sessionUserId !== userId) {
+    const sessionUserId = user.id;
+    if (sessionUserId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -183,7 +177,7 @@ export async function POST(request: NextRequest) {
       ...result.rows[0],
       favorite: false,
       rating: 0,
-      author: session.user?.name
+      author: user.username || user.display_name
     };
 
     return NextResponse.json(prompt);
@@ -194,12 +188,10 @@ export async function POST(request: NextRequest) {
 }
 
 // Обработчик PUT-запросов для обновления промптов
-export async function PUT(request: NextRequest) {
+async function putHandler(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Информация о пользователе добавляется в запрос middleware аутентификации
+    const user = request.user;
 
     const data = await request.json();
     const { promptId, userId, title, text, category, tags, negative, notes, isPublic, parameters } = data;
@@ -210,7 +202,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Проверка прав доступа
-    if (session.user?.id !== userId) {
+    const sessionUserId = user.id;
+    if (sessionUserId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -269,7 +262,7 @@ export async function PUT(request: NextRequest) {
       ...result.rows[0],
       favorite,
       rating,
-      author: session.user?.name
+      author: user.username || user.display_name
     };
 
     return NextResponse.json(prompt);
@@ -280,12 +273,10 @@ export async function PUT(request: NextRequest) {
 }
 
 // Обработчик DELETE-запросов для удаления промптов или изменения статуса избранного
-export async function DELETE(request: NextRequest) {
+async function deleteHandler(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Информация о пользователе добавляется в запрос middleware аутентификации
+    const user = request.user;
 
     const { searchParams } = new URL(request.url);
     const promptId = searchParams.get('promptId');
@@ -297,7 +288,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Проверка прав доступа
-    if (session.user?.id?.toString() !== userId) {
+    if (user.id.toString() !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -346,3 +337,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to process prompt action' }, { status: 500 });
   }
 }
+
+// Экспорт обработчиков с использованием middleware аутентификации
+export const GET = withAuth(getHandler);
+export const POST = withAuth(postHandler);
+export const PUT = withAuth(putHandler);
+export const DELETE = withAuth(deleteHandler);

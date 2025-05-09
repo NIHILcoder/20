@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { withAuth } from '@/middleware/auth';
 
 // Обработчик GET-запросов для получения категорий промптов
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Информация о пользователе добавляется в запрос middleware аутентификации
+    const user = request.user;
 
     // Получаем категории и количество промптов в каждой категории
     const query = `
@@ -53,3 +50,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
   }
 }
+
+// Экспорт обработчика с использованием middleware аутентификации
+export const GET = withAuth(getHandler);

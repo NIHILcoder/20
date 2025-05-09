@@ -17,7 +17,8 @@ export async function fetchWithErrorHandling(url: string, options?: RequestInit)
       headers: {
         ...options?.headers,
         'Content-Type': 'application/json',
-      }
+      },
+      cache: 'no-store' // Отключаем кеширование для запросов аутентификации
     };
     
     const response = await fetch(url, fetchOptions);
