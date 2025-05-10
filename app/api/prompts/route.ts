@@ -83,7 +83,16 @@ async function getHandler(request: NextRequest) {
     query += ` GROUP BY p.id, u.username, f.prompt_id`;
 
     // Сортировка
-    const sortColumn = sortBy === 'rating' ? 'rating' : `p.${sortBy}`;
+    let sortColumn;
+    if (sortBy === 'rating') {
+      sortColumn = 'rating';
+    } else if (sortBy === 'updatedAt') {
+      sortColumn = 'p.updated_at';
+    } else if (sortBy === 'createdAt' || sortBy === 'created') {
+      sortColumn = 'p.created_at';
+    } else {
+      sortColumn = `p.${sortBy}`;
+    }
     query += ` ORDER BY ${sortColumn} ${sortDirection === 'asc' ? 'ASC' : 'DESC'}`;
 
     // Подсчет общего количества записей для пагинации

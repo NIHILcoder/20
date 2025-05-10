@@ -148,6 +148,40 @@ body.dialog-open {
   max-height: 90vh;
 }
 
+/* Исправление проблем с наложением кнопок и выходом за границы */
+.dialog-content {
+  max-height: 90vh;
+  overflow-y: auto;
+  max-width: 95vw;
+}
+
+/* Улучшение отображения кнопок в диалогах */
+.dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* Предотвращение наложения кнопок */
+.button-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 640px) {
+  .dialog-content {
+    width: 95vw;
+    padding: 1rem;
+  }
+  
+  .dialog-footer {
+    flex-direction: column;
+  }
+}
+
 /* Добавьте эти анимации в конец файла app/globals.css */
 
 /* Анимации для генератора */

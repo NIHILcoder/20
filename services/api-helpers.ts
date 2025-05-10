@@ -23,15 +23,25 @@ export async function fetchWithErrorHandling(url: string, options?: RequestInit)
     
     const response = await fetch(url, fetchOptions);
     
-    // Получаем данные ответа
-    const data = await response.json();
-    
-    // Проверяем статус ответа
+    // Проверяем статус ответа перед попыткой получить JSON
     if (!response.ok) {
-      // Если сервер вернул ошибку, выбрасываем исключение с сообщением
-      throw new Error(data.error || `Ошибка ${response.status}: ${response.statusText}`);
+      // Специальная обработка для 401 Unauthorized
+      if (response.status === 401) {
+        throw new Error('Unauthorized');
+      }
+      
+      // Для других ошибок пытаемся получить детали из тела ответа
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Ошибка ${response.status}: ${response.statusText}`);
+      } catch (parseError) {
+        // Если не удалось распарсить JSON, используем статус код
+        throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+      }
     }
     
+    // Получаем данные ответа только для успешных запросов
+    const data = await response.json();
     return data;
   } catch (error: any) {
     // Логируем ошибку

@@ -37,6 +37,33 @@ CREATE TABLE IF NOT EXISTS prompt_ratings (
   UNIQUE(user_id, prompt_id)
 );
 
+-- Добавление столбцов favorite и rating в таблицу prompts
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'prompts' AND column_name = 'favorite'
+    ) THEN
+        ALTER TABLE prompts ADD COLUMN favorite BOOLEAN DEFAULT FALSE;
+        RAISE NOTICE 'Столбец favorite успешно добавлен в таблицу prompts';
+    ELSE
+        RAISE NOTICE 'Столбец favorite уже существует в таблице prompts';
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'prompts' AND column_name = 'rating'
+    ) THEN
+        ALTER TABLE prompts ADD COLUMN rating INTEGER DEFAULT 0;
+        RAISE NOTICE 'Столбец rating успешно добавлен в таблицу prompts';
+    ELSE
+        RAISE NOTICE 'Столбец rating уже существует в таблице prompts';
+    END IF;
+END
+$$;
+
 -- Индексы для оптимизации запросов
 CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
 CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category);

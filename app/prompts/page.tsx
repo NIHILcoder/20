@@ -14,6 +14,7 @@ import {
     PromptFilters,
     PaginationData
 } from "@/services/prompts-service";
+import { CollapsibleCategories } from "@/components/sidebar/collapsible-categories";
 
 import {
     BookOpen,
@@ -142,6 +143,7 @@ export default function PromptLibrary() {
     });
     const [formError, setFormError] = useState<string | null>(null);
     const [formSuccess, setFormSuccess] = useState<string | null>(null);
+    const [tagsCollapsed, setTagsCollapsed] = useState(false);
 
     const { language } = useLanguage();
 
@@ -202,6 +204,7 @@ export default function PromptLibrary() {
             'prompts.details.tags': 'Tags',
             'prompts.details.category': 'Category',
             'prompts.details.created': 'Created',
+            'prompts.details.updated': 'Updated',
             'prompts.validation_error': 'Please fill in all required fields',
             'prompts.save_error': 'Error saving prompt. Please try again.',
             'prompts.update_success': 'Prompt updated successfully!',
@@ -273,6 +276,7 @@ export default function PromptLibrary() {
             'prompts.details.tags': 'Теги',
             'prompts.details.category': 'Категория',
             'prompts.details.created': 'Создан',
+            'prompts.details.updated': 'Обновлен',
             'prompts.details.parameters': 'Параметры',
             'prompts.template.use': 'Использовать шаблон',
             'prompts.no_results.title': 'Промпты не найдены',
@@ -355,7 +359,14 @@ export default function PromptLibrary() {
     const loadCategories = async () => {
         try {
             const categoriesData = await getPromptCategories();
-            setCategories([{ id: "all", name: localT('prompts.categories.all'), count: categoriesData.reduce((sum, cat) => sum + cat.count, 0) }, ...categoriesData]);
+            // Не добавляем дополнительную категорию "Все промпты", так как она уже добавлена в API
+            setCategories(categoriesData.map(cat => {
+                // Заменяем имя категории "Все промпты" на локализованное
+                if (cat.id === "all") {
+                    return { ...cat, name: localT('prompts.categories.all') };
+                }
+                return cat;
+            }));
         } catch (error) {
             console.error('Ошибка при загрузке категорий:', error);
         }
@@ -1002,52 +1013,52 @@ export default function PromptLibrary() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
 
                 <div className="md:col-span-1 space-y-6">
+                    <CollapsibleCategories
+                        title={localT('prompts.categories.title')}
+                        categories={categories.map(category => ({
+                            ...category,
+                            name: category.id !== "all" ? (
+                                <div className="flex items-center">
+                                    <div
+                                        className="mr-2 h-2 w-2 rounded-full"
+                                        style={{ backgroundColor: category.color || "#888" }}
+                                    />
+                                    {category.name}
+                                </div>
+                            ) : category.name
+                        }))}
+                        activeCategory={activeCategory}
+                        onCategorySelect={setActiveCategory}
+                    />
                     <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg">{localT('prompts.categories.title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pb-3">
-                            <div className="space-y-1">
-                                {categories.map(category => (
-                                    <Button
-                                        key={category.id}
-                                        variant={activeCategory === category.id ? "secondary" : "ghost"}
-                                        className="w-full justify-start"
-                                        onClick={() => setActiveCategory(category.id)}
-                                    >
-                                        {category.id !== "all" && (
-                                            <div
-                                                className="mr-2 h-2 w-2 rounded-full"
-                                                style={{ backgroundColor: category.color || "#888" }}
-                                            />
-                                        )}
-                                        {category.name}
-                                        <Badge variant="outline" className="ml-auto">
-                                            {category.count}
-                                        </Badge>
-                                    </Button>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between p-4">
                             <CardTitle className="text-lg">{localT('prompts.tags.title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex flex-wrap gap-1">
-                                {tags.map(tag => (
-                                    <Badge
-                                        key={tag.id}
-                                        variant="outline"
-                                        className="cursor-pointer hover:bg-secondary"
-                                        onClick={() => setSearchQuery(tag.name)}
-                                    >
-                                        {tag.name} ({tag.count})
-                                    </Badge>
-                                ))}
-                            </div>
-                        </CardContent>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setTagsCollapsed(!tagsCollapsed)}
+                                className="h-8 w-8 p-0"
+                            >
+                                {tagsCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                        
+                        {!tagsCollapsed && (
+                            <CardContent className="pt-0">
+                                <div className="flex flex-wrap gap-1">
+                                    {tags.map(tag => (
+                                        <Badge
+                                            key={tag.id}
+                                            variant="outline"
+                                            className="cursor-pointer hover:bg-secondary"
+                                            onClick={() => setSearchQuery(tag.name)}
+                                        >
+                                            {tag.name} ({tag.count})
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        )}
                     </Card>
                     <Card>
                         <CardHeader className="pb-3">
@@ -1136,16 +1147,16 @@ export default function PromptLibrary() {
                                             {localT('prompts.form.title')}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
-                                            onClick={() => setSortBy("created")}
-                                            className={sortBy === "created" ? "bg-muted" : ""}
+                                            onClick={() => setSortBy("createdAt")}
+                                            className={sortBy === "createdAt" ? "bg-muted" : ""}
                                         >
                                             {localT('prompts.details.created')}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
-                                            onClick={() => setSortBy("updated")}
-                                            className={sortBy === "updated" ? "bg-muted" : ""}
+                                            onClick={() => setSortBy("updatedAt")}
+                                            className={sortBy === "updatedAt" ? "bg-muted" : ""}
                                         >
-                                            {localT('prompts.details.created')}
+                                            {localT('prompts.details.updated')}
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}>
