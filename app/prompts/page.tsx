@@ -10,16 +10,34 @@ import {
     updatePrompt, 
     deletePrompt, 
     toggleFavoritePrompt,
+    getUserCollections,
+    createCollection,
+    updateCollection,
+    deleteCollection,
+    addPromptToCollection,
+    removePromptFromCollection,
+    ratePrompt,
+    addComment,
+    getPromptComments,
     Prompt,
     PromptFilters,
-    PaginationData
+    PaginationData,
+    Comment as CommentType,
+    Collection as CollectionType
 } from "@/services/prompts-service";
 import { CollapsibleCategories } from "@/components/sidebar/collapsible-categories";
+import { HierarchicalCategories } from "@/components/prompts/hierarchical-categories";
+import { TagsSelector } from "@/components/prompts/tags-selector";
+import { PromptCollections } from "@/components/prompts/prompt-collections";
+import { PromptComments } from "@/components/prompts/prompt-comments";
+import { InfiniteScroll } from "@/components/prompts/infinite-scroll";
 
 import {
     BookOpen,
     Plus,
     Pencil,
+    FileText,
+    Upload,
     Trash2,
     Search,
     Tag,
@@ -108,12 +126,37 @@ interface Category {
     name: string;
     count: number;
     color?: string;
+    icon?: string;
+    parentId?: string; // Для иерархической структуры категорий
+    children?: Category[]; // Подкатегории
+    isCustom?: boolean; // Флаг пользовательской категории
 }
 
 interface Tag {
     id: string;
     name: string;
     count: number;
+    color?: string;
+    isCustom?: boolean; // Флаг пользовательского тега
+}
+
+interface Collection {
+    id: string;
+    name: string;
+    description?: string;
+    promptIds: string[];
+    createdAt: string;
+    updatedAt: string;
+    isPublic: boolean;
+}
+
+interface Comment {
+    id: string;
+    userId: number;
+    username: string;
+    text: string;
+    createdAt: string;
+    rating?: number;
 }
 
 export default function PromptLibrary() {
@@ -121,6 +164,9 @@ export default function PromptLibrary() {
     const userId = user?.id || 0;
     
     const [searchQuery, setSearchQuery] = useState("");
+    const [searchHistory, setSearchHistory] = useState<string[]>([]); // История поисковых запросов
+    const [popularSearches, setPopularSearches] = useState<string[]>([]); // Популярные запросы
+    
     const [activeCategory, setActiveCategory] = useState("all");
     const [activeTab, setActiveTab] = useState("my-prompts");
     const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -134,16 +180,297 @@ export default function PromptLibrary() {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    
+    // Улучшенная пагинация
     const [pagination, setPagination] = useState<PaginationData>({ 
         total: 0, 
         limit: 20, 
         offset: 0, 
         hasMore: false 
     });
+    const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(true); // Включение бесконечной прокрутки
+    const [isLoadingMore, setIsLoadingMore] = useState(false); // Состояние загрузки дополнительных промптов
+    
+    // Функция для загрузки дополнительных промптов при прокрутке
+    const loadMorePrompts = async () => {
+        if (!userId || !pagination.hasMore || isLoadingMore) return;
+        
+        setIsLoadingMore(true);
+        try {
+            const filters: PromptFilters = {
+                userId: Number(userId),
+                category: activeCategory !== 'all' ? activeCategory : undefined,
+                search: searchQuery || undefined,
+                sortBy: sortBy,
+                sortDirection: sortDirection,
+                limit: pagination.limit,
+                offset: pagination.offset + pagination.limit,
+                favorites: showOnlyFavorites,
+                tab: activeTab as 'my-prompts' | 'community',
+                collectionId: activeCollection || undefined
+            };
+            
+            const response = await getPrompts(filters);
+            setPrompts([...prompts, ...response.prompts]);
+            setPagination(response.pagination);
+        } catch (error) {
+            console.error('Ошибка при загрузке дополнительных промптов:', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+    
+    // Функции для массового редактирования промптов
+    const toggleBulkEditMode = () => {
+        setBulkEditMode(!bulkEditMode);
+        if (!bulkEditMode) {
+            // При включении режима массового редактирования очищаем выбранные промпты
+            setSelectedPrompts([]);
+        }
+    };
+    
+    const togglePromptSelection = (promptId: string) => {
+        if (selectedPrompts.includes(promptId)) {
+            setSelectedPrompts(selectedPrompts.filter(id => id !== promptId));
+        } else {
+            setSelectedPrompts([...selectedPrompts, promptId]);
+        }
+    };
+    
+    const selectAllPrompts = () => {
+        if (selectedPrompts.length === filteredPrompts.length) {
+            // Если все промпты уже выбраны, снимаем выделение
+            setSelectedPrompts([]);
+        } else {
+            // Иначе выбираем все промпты
+            setSelectedPrompts(filteredPrompts.map(prompt => prompt.id));
+        }
+    };
+    
+    const openBulkEditDialog = () => {
+        if (selectedPrompts.length === 0) return;
+        setBulkEditData({
+            category: '',
+            tags: [],
+            isPublic: false
+        });
+        setBulkEditDialogOpen(true);
+    };
+    
+    const handleBulkEdit = async () => {
+        if (selectedPrompts.length === 0 || !userId) return;
+        
+        try {
+            // Обновляем каждый выбранный промпт
+            const updatedPrompts: Prompt[] = [];
+            for (const promptId of selectedPrompts) {
+                const prompt = prompts.find(p => p.id === promptId);
+                if (prompt) {
+                    const updatedPrompt = await updatePrompt({
+                        promptId: prompt.id,
+                        userId: Number(userId),
+                        title: prompt.title,
+                        text: prompt.text,
+                        category: bulkEditData.category || prompt.category,
+                        tags: bulkEditData.tags?.length ? bulkEditData.tags : prompt.tags,
+                        negative: prompt.negative,
+                        notes: prompt.notes,
+                        isPublic: bulkEditData.isPublic !== undefined ? bulkEditData.isPublic : prompt.isPublic,
+                        parameters: prompt.parameters
+                    });
+                    updatedPrompts.push(updatedPrompt);
+                }
+            }
+            
+            // Обновляем список промптов
+            setPrompts(prev => {
+                const newPrompts = [...prev];
+                for (const updatedPrompt of updatedPrompts) {
+                    const index = newPrompts.findIndex(p => p.id === updatedPrompt.id);
+                    if (index !== -1) {
+                        newPrompts[index] = updatedPrompt;
+                    }
+                }
+                return newPrompts;
+            });
+            
+            // Закрываем диалог и выходим из режима массового редактирования
+            setBulkEditDialogOpen(false);
+            setBulkEditMode(false);
+            setSelectedPrompts([]);
+            setFormSuccess(`Успешно обновлено ${updatedPrompts.length} промптов`);
+        } catch (error) {
+            console.error('Ошибка при массовом редактировании промптов:', error);
+            setFormError('Ошибка при массовом редактировании промптов');
+        }
+    };
+    
+    // Функции для экспорта/импорта промптов
+    const exportPrompts = () => {
+        // Экспортируем все промпты или только выбранные
+        const promptsToExport = bulkEditMode && selectedPrompts.length > 0 
+            ? prompts.filter(p => selectedPrompts.includes(p.id))
+            : prompts;
+        
+        // Создаем объект для экспорта
+        const exportData = {
+            prompts: promptsToExport,
+            exportDate: new Date().toISOString(),
+            version: '1.0'
+        };
+        
+        // Конвертируем в JSON и создаем файл для скачивания
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `prompts-export-${new Date().toISOString().slice(0, 10)}.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    };
+    // Добавьте эти функции для работы с коллекциями:
+
+// Функция для обновления коллекции
+const handleUpdateCollection = async (collectionId: string, name: string, description?: string, isPublic: boolean = false) => {
+    if (!userId || !name.trim()) return;
+    
+    try {
+        const p0Argument = {
+            userId: Number(userId),
+            name: name.trim(),
+            description: description?.trim(),
+            isPublic: isPublic
+        };
+        const collectionDataArgument = {
+            collectionId: collectionId,
+            userId: Number(userId),
+            name: name.trim(),
+            description: description?.trim(),
+            isPublic: isPublic
+        };
+        const updatedCollection = await updateCollection(collectionId, p0Argument, collectionDataArgument);
+        
+        // Обновляем список коллекций
+        setCollections(prev => 
+            prev.map(collection => 
+                collection.id === collectionId ? updatedCollection : collection
+            )
+        );
+        
+        setFormSuccess('Коллекция успешно обновлена');
+        
+        // Сбрасываем сообщение об успехе через 3 секунды
+        setTimeout(() => setFormSuccess(null), 3000);
+    } catch (error) {
+        console.error('Ошибка при обновлении коллекции:', error);
+        setFormError('Ошибка при обновлении коллекции');
+        setTimeout(() => setFormError(null), 3000);
+    }
+};
+
+// Функция для удаления коллекции
+const handleDeleteCollection = async (collectionId: string) => {
+    if (!userId || !collectionId) return;
+    
+    try {
+        await deleteCollection(collectionId, Number(userId));
+        
+        // Удаляем коллекцию из списка
+        setCollections(prev => prev.filter(collection => collection.id !== collectionId));
+        
+        // Если удаляемая коллекция была активной, сбрасываем активную коллекцию
+        if (activeCollection === collectionId) {
+            setActiveCollection(null);
+        }
+        
+        setFormSuccess('Коллекция успешно удалена');
+        
+        // Сбрасываем сообщение об успехе через 3 секунды
+        setTimeout(() => setFormSuccess(null), 3000);
+    } catch (error) {
+        console.error('Ошибка при удалении коллекции:', error);
+        setFormError('Ошибка при удалении коллекции');
+        setTimeout(() => setFormError(null), 3000);
+    }
+};
+    const importPrompts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || !event.target.files[0] || !userId) return;
+        
+        try {
+            const file = event.target.files[0];
+            const fileContent = await file.text();
+            const importData = JSON.parse(fileContent);
+            
+            if (!importData.prompts || !Array.isArray(importData.prompts)) {
+                setFormError('Неверный формат файла импорта');
+                return;
+            }
+            
+            // Импортируем каждый промпт
+            const importedPrompts: Prompt[] = [];
+            for (const promptData of importData.prompts) {
+                // Создаем новый промпт на основе импортированных данных
+                const newPrompt = await createPrompt({
+                    userId: Number(userId),
+                    title: promptData.title,
+                    text: promptData.text,
+                    category: promptData.category,
+                    tags: promptData.tags,
+                    negative: promptData.negative,
+                    notes: promptData.notes,
+                    isPublic: promptData.isPublic,
+                    parameters: promptData.parameters
+                });
+                importedPrompts.push(newPrompt);
+            }
+            
+            // Обновляем список промптов
+            setPrompts(prev => [...importedPrompts, ...prev]);
+            setFormSuccess(`Успешно импортировано ${importedPrompts.length} промптов`);
+            
+            // Сбрасываем значение input file
+            event.target.value = '';
+        } catch (error) {
+            console.error('Ошибка при импорте промптов:', error);
+            setFormError('Ошибка при импорте промптов');
+        }
+    };
+    
+    // Состояния для форм и уведомлений
     const [formError, setFormError] = useState<string | null>(null);
     const [formSuccess, setFormSuccess] = useState<string | null>(null);
     const [tagsCollapsed, setTagsCollapsed] = useState(false);
+    
+    // Новые состояния для расширенных функций
+    const [selectedTags, setSelectedTags] = useState<string[]>([]); // Выбранные теги для фильтрации
+    const [collections, setCollections] = useState<Collection[]>([]); // Коллекции промптов
+    const [activeCollection, setActiveCollection] = useState<string | null>(null); // Активная коллекция
+    const [collectionDialogOpen, setCollectionDialogOpen] = useState(false); // Диалог создания/редактирования коллекции
+    
+    // Состояния для комментариев и рейтингов
+    const [commentInput, setCommentInput] = useState(""); // Ввод комментария
+    const [userRating, setUserRating] = useState<number | null>(null); // Рейтинг пользователя
+    const [comments, setComments] = useState<Comment[]>([]); // Комментарии к выбранному промпту
+    
+    // Состояния для пользовательских категорий
+    const [popularTags, setPopularTags] = useState<Tag[]>([]); // Популярные теги
+    const [commentDialogOpen, setCommentDialogOpen] = useState(false); // Диалог комментариев
+    
+    // Состояния для массового редактирования
+    const [selectedPrompts, setSelectedPrompts] = useState<string[]>([]); // Выбранные промпты для массового редактирования
+    const [bulkEditMode, setBulkEditMode] = useState(false); // Режим массового редактирования
+    const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false); // Диалог массового редактирования
+    const [bulkEditData, setBulkEditData] = useState<{
+        category?: string;
+        tags?: string[];
+        isPublic?: boolean;
+    }>({});
+    
+    // Состояния для предпросмотра и статистики
+    const [previewDialogOpen, setPreviewDialogOpen] = useState(false); // Диалог предпросмотра
+    const [promptStats, setPromptStats] = useState<{[key: string]: any}>({}); // Статистика использования промпта
 
     const { language } = useLanguage();
 
@@ -218,6 +545,61 @@ export default function PromptLibrary() {
             'prompts.template.use': 'Use Template',
             'prompts.favorite': 'Favorite',
             'prompts.unfavorite': 'Unfavorite',
+            // Новые переводы для коллекций
+            'prompts.collections.title': 'Collections',
+            'prompts.collections.new': 'New Collection',
+            'prompts.collections.create': 'Create Collection',
+            'prompts.collections.edit': 'Edit Collection',
+            'prompts.collections.delete': 'Delete Collection',
+            'prompts.collections.name': 'Collection Name',
+            'prompts.collections.description': 'Description',
+            'prompts.collections.public': 'Public Collection',
+            'prompts.collections.add_to': 'Add to Collection',
+            'prompts.collections.remove_from': 'Remove from Collection',
+            'prompts.collections.select': 'Select Collection',
+            'prompts.collections.empty': 'No collections found',
+            'prompts.collections.create_first': 'Create your first collection',
+            'prompts.added_to_collection': 'Added to collection successfully',
+            'prompts.removed_from_collection': 'Removed from collection successfully',
+            'prompts.collection_created': 'Collection created successfully',
+            'prompts.collection_error': 'Error with collection operation',
+            // Новые переводы для комментариев и рейтингов
+            'prompts.comments.title': 'Comments',
+            'prompts.comments.add': 'Add Comment',
+            'prompts.comments.placeholder': 'Write your comment here...',
+            'prompts.comments.empty': 'No comments yet',
+            'prompts.comments.be_first': 'Be the first to comment',
+            'prompts.rating.title': 'Rating',
+            'prompts.rating.your': 'Your Rating',
+            'prompts.rating.average': 'Average Rating',
+            'prompts.rating.success': 'Rating submitted successfully',
+            'prompts.rating.error': 'Error submitting rating',
+            'prompts.comment_added': 'Comment added successfully',
+            'prompts.comment_error': 'Error adding comment',
+            // Новые переводы для тегов
+            'prompts.tags.selected': 'Selected Tags',
+            'prompts.tags.clear': 'Clear Tags',
+            'prompts.tags.filter': 'Filter by Tags',
+            'prompts.tags.add_new': 'Add New Tag',
+            'prompts.tags.popular': 'Popular Tags',
+            'prompts.tags.custom': 'Custom Tags',
+            'prompts.tags.search': 'Search Tags',
+            // Новые переводы для массового редактирования
+            'prompts.bulk.title': 'Bulk Edit',
+            'prompts.bulk.select_all': 'Select All',
+            'prompts.bulk.deselect_all': 'Deselect All',
+            'prompts.bulk.selected': 'Selected',
+            'prompts.bulk.add_to_collection': 'Add to Collection',
+            'prompts.bulk.delete': 'Delete Selected',
+            'prompts.bulk.share': 'Share Selected',
+            'prompts.bulk.make_private': 'Make Selected Private',
+            'prompts.bulk.change_category': 'Change Category',
+            'prompts.bulk.add_tags': 'Add Tags',
+            'prompts.bulk.remove_tags': 'Remove Tags',
+            'prompts.bulk.confirm': 'Confirm',
+            'prompts.bulk.cancel': 'Cancel',
+            'prompts.bulk.success': 'Bulk operation completed successfully',
+            'prompts.bulk.error': 'Error during bulk operation'
         },
         ru: {
             'prompts.favorite': 'В избранное',
@@ -287,7 +669,62 @@ export default function PromptLibrary() {
             'prompts.create_success': 'Промпт успешно создан!',
             'prompts.load_more': 'Загрузить еще',
             'prompts.loading_more': 'Загрузка...',
-            'prompts.shared_publicly': 'Этот промпт опубликован публично'
+            'prompts.shared_publicly': 'Этот промпт опубликован публично',
+            // Новые переводы для коллекций
+            'prompts.collections.title': 'Коллекции',
+            'prompts.collections.new': 'Новая коллекция',
+            'prompts.collections.create': 'Создать коллекцию',
+            'prompts.collections.edit': 'Редактировать коллекцию',
+            'prompts.collections.delete': 'Удалить коллекцию',
+            'prompts.collections.name': 'Название коллекции',
+            'prompts.collections.description': 'Описание',
+            'prompts.collections.public': 'Публичная коллекция',
+            'prompts.collections.add_to': 'Добавить в коллекцию',
+            'prompts.collections.remove_from': 'Удалить из коллекции',
+            'prompts.collections.select': 'Выбрать коллекцию',
+            'prompts.collections.empty': 'Коллекции не найдены',
+            'prompts.collections.create_first': 'Создайте вашу первую коллекцию',
+            'prompts.added_to_collection': 'Успешно добавлено в коллекцию',
+            'prompts.removed_from_collection': 'Успешно удалено из коллекции',
+            'prompts.collection_created': 'Коллекция успешно создана',
+            'prompts.collection_error': 'Ошибка при работе с коллекцией',
+            // Новые переводы для комментариев и рейтингов
+            'prompts.comments.title': 'Комментарии',
+            'prompts.comments.add': 'Добавить комментарий',
+            'prompts.comments.placeholder': 'Напишите ваш комментарий здесь...',
+            'prompts.comments.empty': 'Комментариев пока нет',
+            'prompts.comments.be_first': 'Будьте первым, кто оставит комментарий',
+            'prompts.rating.title': 'Рейтинг',
+            'prompts.rating.your': 'Ваша оценка',
+            'prompts.rating.average': 'Средняя оценка',
+            'prompts.rating.success': 'Оценка успешно отправлена',
+            'prompts.rating.error': 'Ошибка при отправке оценки',
+            'prompts.comment_added': 'Комментарий успешно добавлен',
+            'prompts.comment_error': 'Ошибка при добавлении комментария',
+            // Новые переводы для тегов
+            'prompts.tags.selected': 'Выбранные теги',
+            'prompts.tags.clear': 'Очистить теги',
+            'prompts.tags.filter': 'Фильтровать по тегам',
+            'prompts.tags.add_new': 'Добавить новый тег',
+            'prompts.tags.popular': 'Популярные теги',
+            'prompts.tags.custom': 'Пользовательские теги',
+            'prompts.tags.search': 'Поиск тегов',
+            // Новые переводы для массового редактирования
+            'prompts.bulk.title': 'Массовое редактирование',
+            'prompts.bulk.select_all': 'Выбрать все',
+            'prompts.bulk.deselect_all': 'Снять выбор',
+            'prompts.bulk.selected': 'Выбрано',
+            'prompts.bulk.add_to_collection': 'Добавить в коллекцию',
+            'prompts.bulk.delete': 'Удалить выбранные',
+            'prompts.bulk.share': 'Опубликовать выбранные',
+            'prompts.bulk.make_private': 'Сделать выбранные приватными',
+            'prompts.bulk.change_category': 'Изменить категорию',
+            'prompts.bulk.add_tags': 'Добавить теги',
+            'prompts.bulk.remove_tags': 'Удалить теги',
+            'prompts.bulk.confirm': 'Подтвердить',
+            'prompts.bulk.cancel': 'Отмена',
+            'prompts.bulk.success': 'Массовая операция успешно завершена',
+            'prompts.bulk.error': 'Ошибка при выполнении массовой операции'
         }
     };
 
@@ -324,8 +761,21 @@ export default function PromptLibrary() {
             loadPrompts();
             loadCategories();
             loadTags();
+            loadCollections();
         }
     }, [userId]);
+    
+    // Загрузка коллекций пользователя
+    const loadCollections = async () => {
+        if (!userId) return;
+        
+        try {
+            const collectionsData = await getUserCollections(Number(userId));
+            setCollections(collectionsData);
+        } catch (error) {
+            console.error('Ошибка при загрузке коллекций:', error);
+        }
+    };
     
     // Загрузка промптов с учетом фильтров
     const loadPrompts = async () => {
@@ -342,7 +792,9 @@ export default function PromptLibrary() {
                 limit: pagination.limit,
                 offset: pagination.offset,
                 favorites: showOnlyFavorites,
-                tab: activeTab as 'my-prompts' | 'community'
+                tab: activeTab as 'my-prompts' | 'community',
+                tags: selectedTags.length > 0 ? selectedTags : undefined,
+                collectionId: activeCollection || undefined
             };
             
             const response = await getPrompts(filters);
@@ -389,12 +841,500 @@ export default function PromptLibrary() {
             setPagination(prev => ({ ...prev, offset: 0 }));
             loadPrompts();
         }
-    }, [activeCategory, searchQuery, sortBy, sortDirection, showOnlyFavorites, activeTab, userId]);
+    }, [activeCategory, searchQuery, sortBy, sortDirection, showOnlyFavorites, activeTab, selectedTags, activeCollection, userId]);
+    
+    // Функция для добавления промпта в коллекцию
+    const handleAddToCollection = async (promptId: string, collectionId: string) => {
+        if (!userId || !promptId || !collectionId) return;
+        
+        try {
+            await addPromptToCollection(collectionId, promptId, Number(userId));
+            setFormSuccess(localT('prompts.added_to_collection'));
+            
+            // Обновляем список коллекций
+            loadCollections();
+            
+            // Если промпт выбран, обновляем его данные
+            if (selectedPrompt && selectedPrompt.id === promptId) {
+                const updatedPrompt = { ...selectedPrompt };
+                if (!updatedPrompt.collections) {
+                    updatedPrompt.collections = [];
+                }
+                if (!updatedPrompt.collections.includes(collectionId)) {
+                    updatedPrompt.collections.push(collectionId);
+                }
+                setSelectedPrompt(updatedPrompt);
+            }
+            
+            // Сбрасываем сообщение об успехе через 3 секунды
+            setTimeout(() => setFormSuccess(null), 3000);
+        } catch (error) {
+            console.error('Ошибка при добавлении промпта в коллекцию:', error);
+            setFormError(localT('prompts.collection_error'));
+            setTimeout(() => setFormError(null), 3000);
+        }
+    };
+    
+    // Функция для удаления промпта из коллекции
+    const handleRemoveFromCollection = async (promptId: string, collectionId: string) => {
+        if (!userId || !promptId || !collectionId) return;
+        
+        try {
+            await removePromptFromCollection(collectionId, promptId, Number(userId));
+            setFormSuccess(localT('prompts.removed_from_collection'));
+            
+            // Обновляем список коллекций
+            loadCollections();
+            
+            // Если промпт выбран, обновляем его данные
+            if (selectedPrompt && selectedPrompt.id === promptId) {
+                const updatedPrompt = { ...selectedPrompt };
+                if (updatedPrompt.collections) {
+                    updatedPrompt.collections = updatedPrompt.collections.filter(id => id !== collectionId);
+                }
+                setSelectedPrompt(updatedPrompt);
+            }
+            
+            // Сбрасываем сообщение об успехе через 3 секунды
+            setTimeout(() => setFormSuccess(null), 3000);
+        } catch (error) {
+            console.error('Ошибка при удалении промпта из коллекции:', error);
+            setFormError(localT('prompts.collection_error'));
+            setTimeout(() => setFormError(null), 3000);
+        }
+    };
+    
+    // Функция для создания новой коллекции
+    const handleCreateCollection = async (name: string, description?: string, isPublic: boolean = false) => {
+        if (!userId || !name.trim()) return;
+        
+        try {
+            const newCollection = await createCollection({
+                userId: Number(userId),
+                name: name.trim(),
+                description: description?.trim(),
+                isPublic
+            });
+            
+            setCollections([...collections, newCollection]);
+            setFormSuccess(localT('prompts.collection_created'));
+            setCollectionDialogOpen(false);
+            
+            // Сбрасываем сообщение об успехе через 3 секунды
+            setTimeout(() => setFormSuccess(null), 3000);
+        } catch (error) {
+            console.error('Ошибка при создании коллекции:', error);
+            setFormError(localT('prompts.collection_error'));
+            setTimeout(() => setFormError(null), 3000);
+        }
+    };
+    
+    // Функция для оценки промпта
+    const handleRatePrompt = async (promptId: string, rating: number) => {
+        if (!userId || !promptId) return;
+        
+        try {
+            const result = await ratePrompt(promptId, Number(userId), rating);
+            
+            // Обновляем рейтинг промпта в списке
+            const updatedPrompts = prompts.map(prompt => {
+                if (prompt.id === promptId) {
+                    return { ...prompt, rating: result.newRating, userRating: rating };
+                }
+                return prompt;
+            });
+            
+            setPrompts(updatedPrompts);
+            
+            // Если промпт выбран, обновляем его данные
+            if (selectedPrompt && selectedPrompt.id === promptId) {
+                setSelectedPrompt({ ...selectedPrompt, rating: result.newRating, userRating: rating });
+            }
+            
+            setUserRating(rating);
+            setFormSuccess(localT('prompts.rating_success'));
+            
+            // Сбрасываем сообщение об успехе через 3 секунды
+            setTimeout(() => setFormSuccess(null), 3000);
+        } catch (error) {
+            console.error('Ошибка при оценке промпта:', error);
+            setFormError(localT('prompts.rating_error'));
+            setTimeout(() => setFormError(null), 3000);
+        }
+    };
+    
+    // Функция для добавления комментария
+    const handleAddComment = async (promptId: string, text: string, rating?: number) => {
+        if (!userId || !promptId || !text.trim()) return;
+        
+        try {
+            const newComment = await addComment(promptId, Number(userId), text.trim(), rating);
+            
+            // Если промпт выбран, обновляем его комментарии
+            if (selectedPrompt && selectedPrompt.id === promptId) {
+                const updatedPrompt = { ...selectedPrompt };
+                if (!updatedPrompt.comments) {
+                    updatedPrompt.comments = [];
+                }
+                updatedPrompt.comments.push(newComment);
+                setSelectedPrompt(updatedPrompt);
+            }
+            
+            setCommentInput("");
+            setFormSuccess(localT('prompts.comment_added'));
+            
+            // Сбрасываем сообщение об успехе через 3 секунды
+            setTimeout(() => setFormSuccess(null), 3000);
+        } catch (error) {
+            console.error('Ошибка при добавлении комментария:', error);
+            setFormError(localT('prompts.comment_error'));
+            setTimeout(() => setFormError(null), 3000);
+        }
+    };
+    
+    // Функция для загрузки комментариев к промпту
+    const loadPromptComments = async (promptId: string) => {
+        if (!promptId) return;
+        
+        try {
+            const comments = await getPromptComments(promptId);
+            
+            // Если промпт выбран, обновляем его комментарии
+            if (selectedPrompt && selectedPrompt.id === promptId) {
+                setSelectedPrompt({ ...selectedPrompt, comments });
+            }
+        } catch (error) {
+            console.error('Ошибка при загрузке комментариев:', error);
+        }
+    };
+    
+    // Функция для переключения тега в фильтрации
+    const toggleTagFilter = (tagId: string) => {
+        if (selectedTags.includes(tagId)) {
+            setSelectedTags(selectedTags.filter(id => id !== tagId));
+        } else {
+            setSelectedTags([...selectedTags, tagId]);
+        }
+    };
+    
+    // Функция для выбора коллекции
+    const handleCollectionSelect = (collectionId: string | null) => {
+        setActiveCollection(collectionId);
+        // При выборе коллекции сбрасываем категорию на "все"
+        if (collectionId) {
+            setActiveCategory("all");
+        }
+    };
     
     // Установка отфильтрованных промптов
     useEffect(() => {
-        setFilteredPrompts(prompts);
-    }, [prompts]);
+        // Фильтрация по выбранным тегам и активной коллекции
+        let filtered = prompts;
+        
+        // Фильтрация по тегам
+        if (selectedTags.length > 0) {
+            filtered = filtered.filter(prompt => 
+                selectedTags.every(tagId => prompt.tags.includes(tagId))
+            );
+        }
+        
+        // Фильтрация по коллекции
+        if (activeCollection) {
+            const collection = collections.find(c => c.id === activeCollection);
+            if (collection && collection.promptIds) {
+                filtered = filtered.filter(prompt => collection.promptIds.includes(prompt.id));
+            }
+        }
+        
+        setFilteredPrompts(filtered);
+    }, [prompts, selectedTags, activeCollection, collections]);
+    
+    // Компонент для отображения тегов с возможностью фильтрации
+    const TagsFilter = () => {
+        return (
+            <Card className="mb-4">
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle className="text-lg">{localT('prompts.tags.filter')}</CardTitle>
+                        {selectedTags.length > 0 && (
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setSelectedTags([])}
+                                className="h-8 px-2"
+                            >
+                                <X className="h-4 w-4 mr-1" />
+                                {localT('prompts.tags.clear')}
+                            </Button>
+                        )}
+                    </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    {selectedTags.length > 0 && (
+                        <div className="mb-3">
+                            <p className="text-sm text-muted-foreground mb-2">{localT('prompts.tags.selected')}:</p>
+                            <div className="flex flex-wrap gap-1">
+                                {selectedTags.map(tagId => {
+                                    const tag = tags.find(t => t.id === tagId);
+                                    return (
+                                        <Badge 
+                                            key={tagId} 
+                                            variant="secondary"
+                                            className="cursor-pointer"
+                                            onClick={() => toggleTagFilter(tagId)}
+                                        >
+                                            {tag?.name || tagId}
+                                            <X className="h-3 w-3 ml-1" />
+                                        </Badge>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    <ScrollArea className="max-h-[200px]">
+                        <div className="flex flex-wrap gap-1">
+                            {tags.map(tag => (
+                                <Badge 
+                                    key={tag.id} 
+                                    variant={selectedTags.includes(tag.id) ? "default" : "outline"}
+                                    className="cursor-pointer"
+                                    onClick={() => toggleTagFilter(tag.id)}
+                                >
+                                    {tag.name}
+                                    <span className="ml-1 text-xs opacity-70">({tag.count})</span>
+                                </Badge>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+        );
+    };
+    
+    // Компонент для отображения коллекций
+    const CollectionsSelector = ({ promptId }: { promptId: string }) => {
+        const prompt = prompts.find(p => p.id === promptId);
+        const promptCollections = prompt?.collections || [];
+        
+        return (
+            <Card className="mb-4">
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle className="text-lg">{localT('prompts.collections.title')}</CardTitle>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setCollectionDialogOpen(true)}
+                            className="h-8 px-2"
+                        >
+                            <Plus className="h-4 w-4 mr-1" />
+                            {localT('prompts.collections.new')}
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    {collections.length === 0 ? (
+                        <div className="text-center py-4">
+                            <p className="text-muted-foreground mb-2">{localT('prompts.collections.empty')}</p>
+                            <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => setCollectionDialogOpen(true)}
+                            >
+                                <Plus className="h-4 w-4 mr-1" />
+                                {localT('prompts.collections.create_first')}
+                            </Button>
+                        </div>
+                    ) : (
+                        <ScrollArea className="max-h-[200px]">
+                            <div className="space-y-1">
+                                {collections.map(collection => {
+                                    const isInCollection = promptCollections.includes(collection.id);
+                                    return (
+                                        <div key={collection.id} className="flex items-center justify-between py-1">
+                                            <span className="text-sm truncate">{collection.name}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => isInCollection 
+                                                    ? handleRemoveFromCollection(promptId, collection.id)
+                                                    : handleAddToCollection(promptId, collection.id)
+                                                }
+                                                className="h-7 px-2"
+                                            >
+                                                {isInCollection ? (
+                                                    <>
+                                                        <X className="h-3.5 w-3.5 mr-1" />
+                                                        {localT('prompts.collections.remove_from')}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus className="h-3.5 w-3.5 mr-1" />
+                                                        {localT('prompts.collections.add_to')}
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </CardContent>
+            </Card>
+        );
+    };
+    
+    // Компонент для отображения комментариев
+    const CommentsSection = ({ promptId }: { promptId: string }) => {
+        const prompt = prompts.find(p => p.id === promptId);
+        const comments = prompt?.comments || [];
+        
+        // Загружаем комментарии при открытии секции
+        useEffect(() => {
+            if (promptId) {
+                loadPromptComments(promptId);
+            }
+        }, [promptId]);
+        
+        return (
+            <Card className="mb-4">
+                <CardHeader>
+                    <CardTitle className="text-lg">{localT('prompts.comments.title')}</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    {comments.length === 0 ? (
+                        <div className="text-center py-4">
+                            <p className="text-muted-foreground mb-2">{localT('prompts.comments.empty')}</p>
+                            <p className="text-sm text-muted-foreground">{localT('prompts.comments.be_first')}</p>
+                        </div>
+                    ) : (
+                        <ScrollArea className="max-h-[300px]">
+                            <div className="space-y-4">
+                                {comments.map(comment => (
+                                    <div key={comment.id} className="border-b border-border/50 pb-3 last:border-0">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <div className="font-medium">{comment.username}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {new Date(comment.createdAt).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                        {comment.rating && (
+                                            <div className="flex items-center mb-1">
+                                                {Array.from({ length: 5 }).map((_, i) => (
+                                                    <Star 
+                                                        key={i} 
+                                                        className={`h-3.5 w-3.5 ${i < comment.rating! ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} 
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                        <p className="text-sm">{comment.text}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    )}
+                    
+                    <div className="mt-4 pt-3 border-t border-border/50">
+                        <Textarea
+                            placeholder={localT('prompts.comments.placeholder')}
+                            value={commentInput}
+                            onChange={(e) => setCommentInput(e.target.value)}
+                            className="mb-2"
+                        />
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star 
+                                        key={i} 
+                                        className={`h-5 w-5 cursor-pointer ${i < (userRating || 0) ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'}`} 
+                                        onClick={() => setUserRating(i + 1)}
+                                    />
+                                ))}
+                                {userRating && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => setUserRating(null)}
+                                        className="h-7 px-2 ml-2"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
+                            </div>
+                            <Button 
+                                disabled={!commentInput.trim()}
+                                onClick={() => handleAddComment(promptId, commentInput, userRating || undefined)}
+                            >
+                                {localT('prompts.comments.add')}
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
+    
+    // Компонент для создания коллекции
+    const CollectionDialog = () => {
+        const [name, setName] = useState("");
+        const [description, setDescription] = useState("");
+        const [isPublic, setIsPublic] = useState(false);
+        
+        const handleSubmit = () => {
+            if (name.trim()) {
+                handleCreateCollection(name, description, isPublic);
+            }
+        };
+        
+        return (
+            <Dialog open={collectionDialogOpen} onOpenChange={setCollectionDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{localT('prompts.collections.create')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="collection-name">{localT('prompts.collections.name')}</Label>
+                            <Input 
+                                id="collection-name" 
+                                value={name} 
+                                onChange={(e) => setName(e.target.value)} 
+                                placeholder={localT('prompts.collections.name')}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="collection-description">{localT('prompts.collections.description')}</Label>
+                            <Textarea 
+                                id="collection-description" 
+                                value={description} 
+                                onChange={(e) => setDescription(e.target.value)} 
+                                placeholder={localT('prompts.collections.description')}
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Switch 
+                                id="collection-public" 
+                                checked={isPublic} 
+                                onCheckedChange={setIsPublic} 
+                            />
+                            <Label htmlFor="collection-public">{localT('prompts.collections.public')}</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCollectionDialogOpen(false)}>
+                            {localT('prompts.cancel')}
+                        </Button>
+                        <Button onClick={handleSubmit} disabled={!name.trim()}>
+                            {localT('prompts.collections.create')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        );
+    };
+    
 
     const promptTemplates = [
         {
@@ -652,7 +1592,14 @@ export default function PromptLibrary() {
         }
         
         return (
-            <>
+            <InfiniteScroll
+                loadMore={loadMorePrompts}
+                hasMore={pagination.hasMore}
+                isLoading={isLoadingMore}
+                loadingText={localT('prompts.loading_more')}
+                endMessage={localT('prompts.no_prompts')}
+                className="w-full"
+            >
                 <div className={cn(
                     viewMode === "grid" 
                         ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
@@ -721,26 +1668,7 @@ export default function PromptLibrary() {
                     ))}
                 </div>
                 
-                {pagination.hasMore && (
-                    <div className="flex justify-center mt-8">
-                        <Button 
-                            variant="outline" 
-                            onClick={handleLoadMorePrompts} 
-                            disabled={isLoadingMore}
-                            className="min-w-[200px]"
-                        >
-                            {isLoadingMore ? (
-                                <>
-                                    <span className="animate-spin mr-2">⏳</span>
-                                    {localT('prompts.loading_more')}
-                                </>
-                            ) : (
-                                localT('prompts.load_more')
-                            )}
-                        </Button>
-                    </div>
-                )}
-            </>
+            </InfiniteScroll>
         );
     };
     
@@ -812,7 +1740,7 @@ export default function PromptLibrary() {
     }; 
 
     return (
-        <div className="container relative mx-auto py-8">
+        <><div className="container relative mx-auto py-8">
             <EnhancedParticlesBackground variant="bubbles" density={50} />
             <EnhancedParticlesBackground variant="bubbles" density={50} />
 
@@ -832,8 +1760,7 @@ export default function PromptLibrary() {
                                 placeholder={localT('prompts.search')}
                                 className="pl-8 w-full md:w-[200px]"
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
+                                onChange={(e) => setSearchQuery(e.target.value)} />
                         </div>
                         <div className="flex border rounded-md overflow-hidden">
                             <Button
@@ -885,6 +1812,57 @@ export default function PromptLibrary() {
                                 </svg>
                             </Button>
                         </div>
+
+                        {/* Кнопки для массового редактирования и экспорта/импорта */}
+                        <div className="flex items-center gap-2 ml-2">
+                            <Button
+                                variant={bulkEditMode ? "secondary" : "outline"}
+                                size="sm"
+                                onClick={toggleBulkEditMode}
+                                className="flex items-center gap-1"
+                            >
+                                <Edit className="h-4 w-4" />
+                                {bulkEditMode ? "Отменить" : "Массовое редактирование"}
+                            </Button>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                        <FileText className="h-4 w-4 mr-1" />
+                                        Экспорт/Импорт
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onClick={exportPrompts}>
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Экспортировать промпты
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                        <label className="flex items-center cursor-pointer w-full">
+                                            <Upload className="h-4 w-4 mr-2" />
+                                            Импортировать промпты
+                                            <input
+                                                type="file"
+                                                accept=".json"
+                                                onChange={importPrompts}
+                                                className="hidden" />
+                                        </label>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {bulkEditMode && selectedPrompts.length > 0 && (
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={openBulkEditDialog}
+                                    className="flex items-center gap-1"
+                                >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Редактировать выбранные ({selectedPrompts.length})
+                                </Button>
+                            )}
+                        </div>
                         <Dialog>
                             <DialogTrigger asChild>
                                 <SparkleButton>
@@ -906,8 +1884,7 @@ export default function PromptLibrary() {
                                             id="title"
                                             placeholder={localT('prompts.form.title_placeholder')}
                                             value={formState.title}
-                                            onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))}
-                                        />
+                                            onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))} />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="prompt-text">{localT('prompts.form.text')}</Label>
@@ -916,8 +1893,7 @@ export default function PromptLibrary() {
                                             placeholder={localT('prompts.form.text_placeholder')}
                                             className="min-h-[120px] resize-none"
                                             value={formState.text}
-                                            onChange={(e) => setFormState(prev => ({ ...prev, text: e.target.value }))}
-                                        />
+                                            onChange={(e) => setFormState(prev => ({ ...prev, text: e.target.value }))} />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="negative-prompt">{localT('prompts.form.negative')}</Label>
@@ -925,8 +1901,7 @@ export default function PromptLibrary() {
                                             id="negative-prompt"
                                             placeholder={localT('prompts.form.negative_placeholder')}
                                             value={formState.negative}
-                                            onChange={(e) => setFormState(prev => ({ ...prev, negative: e.target.value }))}
-                                        />
+                                            onChange={(e) => setFormState(prev => ({ ...prev, negative: e.target.value }))} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="grid gap-2">
@@ -956,8 +1931,7 @@ export default function PromptLibrary() {
                                                     placeholder={localT('prompts.form.add_tag')}
                                                     value={tagInput}
                                                     onChange={(e) => setTagInput(e.target.value)}
-                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                                                />
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddTag()} />
                                                 <Button type="button" size="sm" onClick={handleAddTag}>
                                                     {localT('prompts.form.add')}
                                                 </Button>
@@ -988,15 +1962,13 @@ export default function PromptLibrary() {
                                             id="notes"
                                             placeholder={localT('prompts.form.notes_placeholder')}
                                             value={formState.notes}
-                                            onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))}
-                                        />
+                                            onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))} />
                                     </div>
                                     <div className="flex items-center space-x-2 pt-2">
                                         <Switch
                                             id="public-prompt"
                                             checked={formState.isPublic}
-                                            onCheckedChange={(checked) => setFormState(prev => ({ ...prev, isPublic: checked }))}
-                                        />
+                                            onCheckedChange={(checked) => setFormState(prev => ({ ...prev, isPublic: checked }))} />
                                         <Label htmlFor="public-prompt">{localT('prompts.form.public')}</Label>
                                     </div>
                                 </div>
@@ -1009,7 +1981,7 @@ export default function PromptLibrary() {
                     </div>
                 </div>
             </div>
-        
+
             <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
 
                 <div className="md:col-span-1 space-y-6">
@@ -1021,28 +1993,26 @@ export default function PromptLibrary() {
                                 <div className="flex items-center">
                                     <div
                                         className="mr-2 h-2 w-2 rounded-full"
-                                        style={{ backgroundColor: category.color || "#888" }}
-                                    />
+                                        style={{ backgroundColor: category.color || "#888" }} />
                                     {category.name}
                                 </div>
                             ) : category.name
                         }))}
                         activeCategory={activeCategory}
-                        onCategorySelect={setActiveCategory}
-                    />
+                        onCategorySelect={setActiveCategory} />
                     <Card>
                         <div className="flex items-center justify-between p-4">
                             <CardTitle className="text-lg">{localT('prompts.tags.title')}</CardTitle>
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => setTagsCollapsed(!tagsCollapsed)}
                                 className="h-8 w-8 p-0"
                             >
                                 {tagsCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                             </Button>
                         </div>
-                        
+
                         {!tagsCollapsed && (
                             <CardContent className="pt-0">
                                 <div className="flex flex-wrap gap-1">
@@ -1087,7 +2057,7 @@ export default function PromptLibrary() {
                                                             category: template.category
                                                         });
                                                         setPromptDialogOpen(true);
-                                                    }}
+                                                    } }
                                                 >
                                                     {localT('prompts.template.use')}
                                                 </Button>
@@ -1126,8 +2096,7 @@ export default function PromptLibrary() {
                                     <Switch
                                         id="favorites-only"
                                         checked={showOnlyFavorites}
-                                        onCheckedChange={setShowOnlyFavorites}
-                                    />
+                                        onCheckedChange={setShowOnlyFavorites} />
                                     <Label htmlFor="favorites-only" className="text-xs">{localT('prompts.favorites_only')}</Label>
                                 </div>
                                 <DropdownMenu>
@@ -1184,7 +2153,7 @@ export default function PromptLibrary() {
                         </TabsContent>
                     </Tabs>
                 </div>
-             </div>
+            </div>
 
             {selectedPrompt && (
                 <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
@@ -1211,8 +2180,7 @@ export default function PromptLibrary() {
                                     <Input
                                         id="edit-title"
                                         value={formState.title}
-                                        onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))}
-                                    />
+                                        onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="edit-prompt-text">{localT('prompts.form.text')}</Label>
@@ -1220,16 +2188,14 @@ export default function PromptLibrary() {
                                         id="edit-prompt-text"
                                         className="min-h-[120px]"
                                         value={formState.text}
-                                        onChange={(e) => setFormState(prev => ({ ...prev, text: e.target.value }))}
-                                    />
+                                        onChange={(e) => setFormState(prev => ({ ...prev, text: e.target.value }))} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="edit-negative-prompt">{localT('prompts.form.negative')}</Label>
                                     <Textarea
                                         id="edit-negative-prompt"
                                         value={formState.negative}
-                                        onChange={(e) => setFormState(prev => ({ ...prev, negative: e.target.value }))}
-                                    />
+                                        onChange={(e) => setFormState(prev => ({ ...prev, negative: e.target.value }))} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="grid gap-2">
@@ -1259,8 +2225,7 @@ export default function PromptLibrary() {
                                                 placeholder={localT('prompts.form.add_tag')}
                                                 value={tagInput}
                                                 onChange={(e) => setTagInput(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                                            />
+                                                onKeyDown={(e) => e.key === 'Enter' && handleAddTag()} />
                                             <Button type="button" size="sm" onClick={handleAddTag}>
                                                 {localT('prompts.form.add')}
                                             </Button>
@@ -1290,15 +2255,13 @@ export default function PromptLibrary() {
                                     <Textarea
                                         id="edit-notes"
                                         value={formState.notes}
-                                        onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))}
-                                    />
+                                        onChange={(e) => setFormState(prev => ({ ...prev, notes: e.target.value }))} />
                                 </div>
                                 <div className="flex items-center space-x-2 pt-2">
                                     <Switch
                                         id="edit-public-prompt"
                                         checked={formState.isPublic}
-                                        onCheckedChange={(checked) => setFormState(prev => ({ ...prev, isPublic: checked }))}
-                                    />
+                                        onCheckedChange={(checked) => setFormState(prev => ({ ...prev, isPublic: checked }))} />
                                     <Label htmlFor="edit-public-prompt">{localT('prompts.form.public')}</Label>
                                 </div>
                                 <DialogFooter className="mt-4">
@@ -1394,25 +2357,72 @@ export default function PromptLibrary() {
                                                 className={cn(
                                                     "mr-2 h-4 w-4",
                                                     selectedPrompt?.favorite ? "fill-yellow-500 text-yellow-500" : ""
-                                                )}
-                                            />
+                                                )} />
                                             {selectedPrompt?.favorite ? localT('prompts.unfavorite') : localT('prompts.favorite')}
                                         </Button>
                                     </div>
                                     <Button
                                         variant="default"
                                         onClick={() => {
-                                            setPrompts(prev =>
-                                                prev.map(p => p.id === selectedPrompt?.id ?
-                                                    { ...p, usageCount: p.usageCount + 1 } : p
-                                                )
+                                            setPrompts(prev => prev.map(p => p.id === selectedPrompt?.id ?
+                                                { ...p, usageCount: p.usageCount + 1 } : p
+                                            )
                                             );
                                             setPromptDialogOpen(false);
-                                        }}
+                                        } }
                                     >
                                         <Sparkles className="mr-2 h-4 w-4" />
                                         {localT('prompts.use_prompt')}
                                     </Button>
+                                </div>
+
+                                {/* Интеграция компонента коллекций */}
+                                <div className="mt-6 pt-4 border-t border-border/50">
+                                    <h3 className="text-sm font-medium mb-3">{localT('prompts.collections.title')}</h3>
+                                    <PromptCollections
+                                        title={localT('prompts.collections.title')}
+                                        collections={collections}
+                                        activeCollection={activeCollection}
+                                        onCollectionSelect={setActiveCollection}
+                                        onCollectionCreate={(name, description, isPublic) => {
+                                            handleCreateCollection(name, description, isPublic);
+                                        } }
+                                        onCollectionEdit={(id, name, description, isPublic) => {
+                                            handleUpdateCollection(id, name, description, isPublic);
+                                        } }
+                                        onCollectionDelete={(id) => {
+                                            handleDeleteCollection(id);
+                                        } }
+                                        maxHeight="200px" />
+                                </div>
+
+                                {/* Интеграция компонента комментариев */}
+                                <div className="mt-6 pt-4 border-t border-border/50">
+                                    <h3 className="text-sm font-medium mb-3">{localT('prompts.comments.title')}</h3>
+                                    <PromptComments
+                                        promptId={selectedPrompt?.id || ''}
+                                        comments={selectedPrompt?.comments || []}
+                                        userRating={userRating}
+                                        onAddComment={(text) => {
+                                            handleAddComment(selectedPrompt?.id || '', text, userRating || undefined);
+                                        } }
+                                        onEditComment={(id, text) => {
+                                            // Реализация редактирования комментария
+                                            console.log('Edit comment', id, text);
+                                        } }
+                                        onDeleteComment={(id) => {
+                                            // Реализация удаления комментария
+                                            console.log('Delete comment', id);
+                                        } }
+                                        onRatePrompt={(rating) => {
+                                            setUserRating(rating);
+                                            // Вызов API для сохранения рейтинга
+                                            if (selectedPrompt) {
+                                                ratePrompt(selectedPrompt.id, Number(userId), rating);
+                                            }
+                                        } }
+                                        isLoggedIn={!!user}
+                                        maxHeight="300px" />
                                 </div>
                             </div>
                         )}
@@ -1420,5 +2430,108 @@ export default function PromptLibrary() {
                 </Dialog>
             )}
         </div>
+            /* Диалог массового редактирования промптов (с исправлениями) */
+            <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Массовое редактирование промптов</DialogTitle>
+                        <DialogDescription>
+                            Редактирование {selectedPrompts.length} выбранных промптов
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="bulk-category">Категория</Label>
+                            <Select
+                                value={bulkEditData.category || ''}
+                                onValueChange={(value) => setBulkEditData(prev => ({ ...prev, category: value }))}
+                            >
+                                <SelectTrigger id="bulk-category">
+                                    <SelectValue placeholder="Выберите категорию" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Не изменять</SelectItem>
+                                    {categories.filter(c => c.id !== "all").map(category => (
+                                        <SelectItem key={category.id} value={category.id}>
+                                            {category.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="bulk-tags">Теги</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="bulk-tags"
+                                    placeholder="Добавить тег"
+                                    value={tagInput}
+                                    onChange={(e) => setTagInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && tagInput.trim()) {
+                                            setBulkEditData(prev => ({
+                                                ...prev,
+                                                tags: [...(prev.tags || []), tagInput.trim()]
+                                            }));
+                                            setTagInput('');
+                                        }
+                                    } } />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (tagInput.trim()) {
+                                            setBulkEditData(prev => ({
+                                                ...prev,
+                                                tags: [...(prev.tags || []), tagInput.trim()]
+                                            }));
+                                            setTagInput('');
+                                        }
+                                    } }
+                                >
+                                    Добавить
+                                </Button>
+                            </div>
+                        </div>
+
+                        {bulkEditData.tags && bulkEditData.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                                {bulkEditData.tags.map(tag => (
+                                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                                        {tag}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                                            onClick={() => {
+                                                setBulkEditData(prev => ({
+                                                    ...prev,
+                                                    tags: prev.tags?.filter(t => t !== tag) || []
+                                                }));
+                                            } }
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch
+                                id="bulk-public"
+                                checked={bulkEditData.isPublic || false}
+                                onCheckedChange={(checked) => setBulkEditData(prev => ({ ...prev, isPublic: checked }))} />
+                            <Label htmlFor="bulk-public">Поделиться с сообществом</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>Отмена</Button>
+                        <Button onClick={handleBulkEdit}>Применить изменения</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog></>
     );
 }

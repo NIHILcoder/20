@@ -339,6 +339,7 @@ interface AnimatedBadgeProps {
     children: React.ReactNode;
     className?: string;
     animation?: "pulse" | "bounce" | "none";
+    style?: React.CSSProperties;
 }
 
 // Animated badge that can pulse or bounce
