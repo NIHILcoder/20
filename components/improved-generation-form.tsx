@@ -41,8 +41,29 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-context";
-// Импорт сервиса BFL API
+import { imageService } from "../services/image-service";
 import { bflApiService } from "@/services/bfl-api";
+
+// Сохраняем image
+const saveImageToServer = async (imageData: string, prompt: string): Promise<{success: boolean, path?: string, error?: string}> => {
+    try {
+      // Генерируем уникальное имя файла с датой и частью промпта
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const sanitizedPrompt = prompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `image_${timestamp}_${sanitizedPrompt}.png`;
+      
+      const response = await axios.post('/api/save-image', {
+        imageData,
+        filename,
+        prompt
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при сохранении изображения:', error);
+      return { success: false, error: 'Не удалось сохранить изображение' };
+    }
+  };
 
 const fadeInOut = {
     hidden: { opacity: 0 },
@@ -697,11 +718,14 @@ export const ImprovedGenerationForm: React.FC = () => {
             if (result && result.id) {
                 setGenerationTaskId(result.id);
                 setLoadingStage(getTranslation('form.polling'));
+                console.log('Получен ID задания:', result.id);
                 
                 // Начинаем опрос результатов
                 const interval = setInterval(async () => {
                     try {
                         const pollResult = await bflApiService.getResult(result.id);
+                        
+                        console.log('Опрос ответа:', pollResult.status, 'Прогресс:', pollResult.progress);
                         
                         // Обновляем прогресс, если доступен
                         if (pollResult.progress) {
@@ -710,17 +734,130 @@ export const ImprovedGenerationForm: React.FC = () => {
                         }
                         
                         // Проверяем статус
-                        if (pollResult.status === 'Ready' && pollResult.result) {
+                        // Найдите этот блок в handleGenerate и замените его
+                        if (pollResult.status === 'Ready') {
                             clearInterval(interval);
                             clearInterval(progressInterval);
                             
-                            // Устанавливаем сгенерированное изображение
-                            setGeneratedImage(pollResult.result);
-                            setProgress(100);
-                            setTimeout(() => {
-                                setGenerating(false);
-                                setLoadingStage(null);
-                            }, 500);
+                            console.log('Полный ответ от BFL API:', JSON.stringify(pollResult, null, 2));
+                            
+                            // Определяем, в каком формате пришло изображение
+                            let imageData = null;
+                            
+                            if (pollResult.result) {
+                                // Обработка случая, когда result - JSON-строка в виде строки
+                                if (typeof pollResult.result === 'string' && pollResult.result.includes('{') && pollResult.result.includes('}')) {
+                                    try {
+                                        // Пытаемся распарсить строку как JSON
+                                        const jsonResult = JSON.parse(pollResult.result);
+                                        console.log('Распарсенный JSON из результата:', jsonResult);
+                                        
+                                        // Извлекаем URL изображения из различных возможных полей
+                                        if (jsonResult.sample) {
+                                            imageData = jsonResult.sample;
+                                        } else if (jsonResult.url) {
+                                            imageData = jsonResult.url;
+                                        } else if (jsonResult.image) {
+                                            imageData = jsonResult.image;
+                                        } else if (jsonResult.image_url) {
+                                            imageData = jsonResult.image_url;
+                                        } else if (jsonResult.data) {
+                                            imageData = jsonResult.data;
+                                        }
+                                    } catch (e) {
+                                        console.error('Ошибка при парсинге JSON-строки:', e);
+                                        console.error('Исходная строка:', pollResult.result);
+                                    }
+                                }
+                                // Если result - обычная строка (URL или base64), используем её напрямую
+                                else if (typeof pollResult.result === 'string') {
+                                    imageData = pollResult.result;
+                                }
+                                // Если result - объект, ищем в нём изображение
+                                else if (typeof pollResult.result === 'object') {
+                                    // Проверяем различные возможные поля с изображением
+                                    if (pollResult.result.sample) {
+                                        imageData = pollResult.result.sample;
+                                    } else if (pollResult.result.image) {
+                                        imageData = pollResult.result.image;
+                                    } else if (pollResult.result.url) {
+                                        imageData = pollResult.result.url;
+                                    } else if (pollResult.result.image_url) {
+                                        imageData = pollResult.result.image_url;
+                                    } else if (pollResult.result.data) {
+                                        imageData = pollResult.result.data;
+                                    } else if (pollResult.result.base64) {
+                                        imageData = 'data:image/png;base64,' + pollResult.result.base64;
+                                    } else if (pollResult.result.base64_image) {
+                                        imageData = 'data:image/png;base64,' + pollResult.result.base64_image;
+                                    } else {
+                                        // Если не нашли изображение в object.result, ищем на верхнем уровне
+                                        console.log('Не удалось найти изображение в result. Содержимое результата:', pollResult.result);
+                                    }
+                                }
+                            }
+                            
+                            // Если мы не нашли изображение в result, попробуем поискать его на верхнем уровне
+                            if (!imageData) {
+                                if (pollResult.image) {
+                                    imageData = pollResult.image;
+                                } else if (pollResult.url) {
+                                    imageData = pollResult.url;
+                                } else if (pollResult.sample) {
+                                    imageData = pollResult.sample;
+                                } else if (pollResult.image_url) {
+                                    imageData = pollResult.image_url;
+                                } else if (pollResult.data) {
+                                    imageData = pollResult.data;
+                                } else if (pollResult.base64) {
+                                    imageData = 'data:image/png;base64,' + pollResult.base64;
+                                } else if (pollResult.base64_image) {
+                                    imageData = 'data:image/png;base64,' + pollResult.base64_image;
+                                }
+                            }
+                            
+                            // Окончательная проверка - нашли ли мы изображение
+                            if (imageData) {
+                                console.log('Найдено изображение:', typeof imageData === 'string' ? 
+                                    imageData.substring(0, 50) + '...' : 
+                                    'Тип: ' + typeof imageData);
+                                
+                                // Проверка, что imageData - строка
+                                if (typeof imageData !== 'string') {
+                                    console.error('Ошибка: imageData не является строкой:', imageData);
+                                    throw new Error('Полученные данные изображения имеют неправильный формат');
+                                }
+                                
+                                // Установка изображения
+                                setGeneratedImage(imageData);
+                                
+                                // Остальной код остается без изменений...
+                                setProgress(100);
+                                setTimeout(() => {
+                                    setGenerating(false);
+                                    setLoadingStage(null);
+                                }, 500);
+                                
+                               // Автоматически сохраняем изображение - замените этот блок
+                                try {
+                                    // Функция сохранения из шага 3
+                                    const saveResult = await saveImageToServer(imageData, prompt);
+                                    if (saveResult.success) {
+                                        console.log('Изображение успешно сохранено на сервере:', saveResult.path);
+                                        showNotification('Изображение сохранено в галерее', 'success');
+                                    } else {
+                                        console.error('Ошибка при сохранении на сервере:', saveResult.error);
+                                    }
+                                } catch (error) {
+                                    console.error('Ошибка при сохранении изображения:', error);
+                                }
+                                
+                                // Добавляем в недавние изображения
+                                setRecentGenerations(prev => [imageData, ...(prev.length >= 6 ? prev.slice(0, 5) : prev)]);
+                            } else {
+                                console.error('Не удалось найти изображение в ответе API:', pollResult);
+                                throw new Error('Не удалось найти изображение в ответе API');
+                            }
                         } else if (pollResult.status === 'Error' || pollResult.status === 'Content Moderated' || pollResult.status === 'Request Moderated') {
                             clearInterval(interval);
                             clearInterval(progressInterval);
@@ -728,11 +865,11 @@ export const ImprovedGenerationForm: React.FC = () => {
                             setLoadingStage(null);
                             setError(pollResult.status === 'Content Moderated' ? 
                                 'Содержимое было отклонено модерацией. Пожалуйста, измените промпт.' : 
-                                'Произошла ошибка при генерации изображения.');
+                                `Ошибка при генерации изображения: ${pollResult.status}`);
                             showNotification(
                                 pollResult.status === 'Content Moderated' ? 
                                 'Содержимое отклонено модерацией' : 
-                                'Ошибка генерации', 
+                                `Ошибка генерации: ${pollResult.status}`, 
                                 'error'
                             );
                         }
@@ -742,7 +879,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                         clearInterval(progressInterval);
                         setGenerating(false);
                         setLoadingStage(null);
-                        setError('Ошибка при получении результата генерации');
+                        setError(error instanceof Error ? error.message : 'Ошибка при получении результата генерации');
                         showNotification('Ошибка при получении результата', 'error');
                     }
                 }, 2000); // Опрос каждые 2 секунды
@@ -1210,6 +1347,34 @@ export const ImprovedGenerationForm: React.FC = () => {
                                     </AnimatePresence>
 
                                     {/* Prompt */}
+                                    <Button 
+    variant="outline" 
+    size="sm" 
+    className="bg-amber-50 hover:bg-amber-100"
+    onClick={async () => {
+        try {
+            // Тестовое изображение
+            const testImageBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABmJLR0QA/wD/AP+gvaeTAAAAkUlEQVR4nO3XQQ0AIRAEwWvDI+FfCOCBB7JTBTOPnc3M3ANnvdqB32GIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIsN8+fj6zc34Zck/o3xhmFAEQ3wAAAABJRU5ErkJggg==";
+            
+            // Пытаемся сохранить тестовое изображение
+            const result = await saveImageToServer(testImageBase64, "Тестовый промпт");
+            if (result.success) {
+                showNotification('Тестовое изображение успешно сохранено: ' + result.path, 'success');
+            } else {
+                showNotification('Ошибка при сохранении: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Ошибка теста:', error);
+            showNotification('Ошибка теста: ' + (error instanceof Error ? error.message : String(error)), 'error');
+        }
+    }}
+>
+    Тест сохранения
+</Button>
+                                        <Button 
+                                        >
+                                        Тестовое изображение
+                                        </Button>
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <Label
