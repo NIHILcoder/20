@@ -6,6 +6,7 @@
 
 | Страница | Файл страницы | Основные компоненты | API маршруты | Модели |
 |----------|---------------|---------------------|--------------|--------|
+| **Корневой макет** | `app/layout.tsx` | - `components/app-sidebar.tsx`<br>- `components/header.tsx`<br>- `components/bottom-nav.tsx`<br>- `contexts/theme-provider.tsx`<br>- `contexts/auth-context.tsx`<br>- `contexts/language-context.tsx` | - | - |
 | **Главная** | `app/page.tsx` | - `improved-generation-form.tsx`<br>- `enhanced-particles-background.tsx` | - | - |
 | **Сообщество** | `app/community/page.tsx` | - `community/artwork-grid.tsx`<br>- `community/community-filters.tsx`<br>- `community/tournaments.tsx`<br>- `community/collaborations.tsx`<br>- `enhanced-particles-background.tsx` | `api/community/` | - `artwork.js`<br>- `tournament.js`<br>- `collaboration.js` |
 | **Избранное** | `app/favorites/page.tsx` | - `favorites/collections-grid.tsx`<br>- `favorites/collection-items.tsx`<br>- `particles-background.tsx` | - `api/favorites/`<br>- `api/collection/`<br>- `api/collection-items/` | - `collection.js` |
