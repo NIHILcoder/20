@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+// Именованный экспорт для GET
 export async function GET() {
   try {
     const dir = path.join(process.cwd(), 'public/generated');

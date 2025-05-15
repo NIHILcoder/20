@@ -1012,34 +1012,83 @@ export const ImprovedGenerationForm: React.FC = () => {
         }
     };
 
-    // Обработчик для скачивания изображения
-    const handleDownload = async () => {
-        if (!generatedImage) return;
+// Обработчик для скачивания изображения
+const handleDownload = async () => {
+    if (!generatedImage) return;
+    
+    try {
+        console.log('Скачивание изображения: начало', generatedImage.substring(0, 100));
         
-        try {
-            // Проверяем, является ли generatedImage URL или base64
-            const imageUrl = generatedImage.startsWith('data:') 
-                ? generatedImage 
-                : generatedImage;
-                
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            
+        // Проверяем формат URL
+        if (generatedImage.startsWith('data:')) {
+            // Если это base64, скачиваем напрямую через a.href
             const a = document.createElement('a');
-            a.href = url;
+            a.href = generatedImage;
             a.download = `visiomera-generation-${new Date().getTime()}.png`;
             document.body.appendChild(a);
             a.click();
-            window.URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(a.href);
             document.body.removeChild(a);
             
             showNotification('Изображение успешно скачано');
-        } catch (error: unknown) {
-            console.error('Ошибка при скачивании изображения:', error);
-            showNotification('Ошибка при скачивании изображения', 'error');
+        } else if (generatedImage.startsWith('http')) {
+            // Проверяем CORS и доступность URL
+            try {
+                // Проверяем URL через fetch
+                const testResponse = await fetch(generatedImage, { method: 'HEAD' });
+                if (!testResponse.ok) {
+                    throw new Error(`Ответ сервера: ${testResponse.status}`);
+                }
+                
+                // URL доступен, скачиваем
+                const response = await fetch(generatedImage);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `visiomera-generation-${new Date().getTime()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showNotification('Изображение успешно скачано');
+            } catch (error) {
+                console.error('CORS или другая ошибка при скачивании:', error);
+                
+                // Пробуем скачать через сервер
+                showNotification('Пробуем скачать через прокси...', 'info');
+                
+                // Создаем прокси-маршрут для скачивания
+                try {
+                    // Вместо прямого скачивания, создаем фрейм или новую вкладку с URL
+                    window.open(generatedImage, '_blank');
+                    showNotification('Изображение открыто в новой вкладке');
+                } catch (e) {
+                    console.error('Ошибка при открытии изображения:', e);
+                    showNotification('Не удалось скачать изображение. Пожалуйста, сохраните его вручную.', 'error');
+                }
+            }
+        } else if (generatedImage.startsWith('/')) {
+            // Это локальный путь
+            const a = document.createElement('a');
+            a.href = generatedImage;
+            a.download = `visiomera-generation-${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            showNotification('Изображение успешно скачано');
+        } else {
+            console.error('Неизвестный формат URL изображения:', generatedImage);
+            showNotification('Неизвестный формат URL изображения', 'error');
         }
-    };
+    } catch (error: unknown) {
+        console.error('Ошибка при скачивании изображения:', error);
+        showNotification('Ошибка при скачивании изображения', 'error');
+    }
+};
 
     // Обработчик для создания вариаций изображения
     const handleVariations = () => {
@@ -1347,34 +1396,6 @@ export const ImprovedGenerationForm: React.FC = () => {
                                     </AnimatePresence>
 
                                     {/* Prompt */}
-                                    <Button 
-    variant="outline" 
-    size="sm" 
-    className="bg-amber-50 hover:bg-amber-100"
-    onClick={async () => {
-        try {
-            // Тестовое изображение
-            const testImageBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABmJLR0QA/wD/AP+gvaeTAAAAkUlEQVR4nO3XQQ0AIRAEwWvDI+FfCOCBB7JTBTOPnc3M3ANnvdqB32GIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIYIhgiGCIsN8+fj6zc34Zck/o3xhmFAEQ3wAAAABJRU5ErkJggg==";
-            
-            // Пытаемся сохранить тестовое изображение
-            const result = await saveImageToServer(testImageBase64, "Тестовый промпт");
-            if (result.success) {
-                showNotification('Тестовое изображение успешно сохранено: ' + result.path, 'success');
-            } else {
-                showNotification('Ошибка при сохранении: ' + result.error, 'error');
-            }
-        } catch (error) {
-            console.error('Ошибка теста:', error);
-            showNotification('Ошибка теста: ' + (error instanceof Error ? error.message : String(error)), 'error');
-        }
-    }}
->
-    Тест сохранения
-</Button>
-                                        <Button 
-                                        >
-                                        Тестовое изображение
-                                        </Button>
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <Label
