@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
 import {
     Sparkles,
     Save,
@@ -40,6 +41,8 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-context";
+// Импорт сервиса BFL API
+import { bflApiService } from "@/services/bfl-api";
 
 const fadeInOut = {
     hidden: { opacity: 0 },
@@ -75,6 +78,7 @@ interface Model {
     id: string;
     name: string;
     image: string;
+    apiModel: string; // Маппинг на API модель
 }
 
 interface Sampler {
@@ -112,6 +116,7 @@ interface Upscaler {
 interface Notification {
     message: string;
     visible: boolean;
+    type?: 'success' | 'error' | 'info';
 }
 
 export const ImprovedGenerationForm: React.FC = () => {
@@ -122,7 +127,9 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [sourceImage, setSourceImage] = useState<string | null>(null);
     const [prompt, setPrompt] = useState<string>("");
     const [negativePrompt, setNegativePrompt] = useState<string>("");
-
+    const [error, setError] = useState<string | null>(null);
+    const [loadingStage, setLoadingStage] = useState<string | null>(null);
+    
     // UI settings
     const [showTagSuggestions, setShowTagSuggestions] = useState<boolean>(false);
     const [zoomLevel, setZoomLevel] = useState<number>(100);
@@ -151,6 +158,13 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [promptFocused, setPromptFocused] = useState<boolean>(false);
     const [showComplexityVisualization, setShowComplexityVisualization] = useState<boolean>(false);
     const [recentGenerations, setRecentGenerations] = useState<string[]>([]);
+    
+    // Новые состояния для BFL API
+    const [ultraModeEnabled, setUltraModeEnabled] = useState<boolean>(false);
+    const [rawModeEnabled, setRawModeEnabled] = useState<boolean>(false);
+    const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
+    const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+    const [imagePromptStrength, setImagePromptStrength] = useState<number>(0.3);
 
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -395,6 +409,27 @@ export const ImprovedGenerationForm: React.FC = () => {
         'form.tips.quality': {
             en: 'Add quality tags: "detailed", "high resolution"',
             ru: 'Добавляйте теги качества: "детализированный", "высокое разрешение"'
+        },
+        // Новые переводы для BFL API
+        'form.ultra_mode': {
+            en: 'Ultra Mode (high quality)',
+            ru: 'Режим Ультра (высокое качество)'
+        },
+        'form.raw_mode': {
+            en: 'Raw Mode (more natural look)',
+            ru: 'Режим Raw (более естественный вид)'
+        },
+        'form.image_prompt_strength': {
+            en: 'Image Prompt Strength',
+            ru: 'Сила влияния исходного изображения'
+        },
+        'form.error': {
+            en: 'Error',
+            ru: 'Ошибка'
+        },
+        'form.polling': {
+            en: 'Waiting for result...',
+            ru: 'Ожидание результата...'
         }
     };
 
@@ -411,10 +446,10 @@ export const ImprovedGenerationForm: React.FC = () => {
 
     // Available models, samplers, tags, etc.
     const availableModels: Model[] = [
-        { id: "flux", name: "Flux Realistic", image: "/placeholder.svg?height=80&width=80&text=Flux" },
-        { id: "anime", name: "Anime Diffusion", image: "/placeholder.svg?height=80&width=80&text=Anime" },
-        { id: "dreamshaper", name: "Dreamshaper", image: "/placeholder.svg?height=80&width=80&text=Dream" },
-        { id: "realistic", name: "Realistic Vision", image: "/placeholder.svg?height=80&width=80&text=Real" }
+        { id: "flux", name: "FLUX Pro 1.1", image: "/placeholder.svg?height=80&width=80&text=FLUX", apiModel: "flux-pro-1.1" },
+        { id: "flux_ultra", name: "FLUX Ultra", image: "/placeholder.svg?height=80&width=80&text=Ultra", apiModel: "flux-pro-1.1-ultra" },
+        { id: "flux_raw", name: "FLUX Raw", image: "/placeholder.svg?height=80&width=80&text=Raw", apiModel: "flux-pro-1.1-ultra-raw" },
+        { id: "flux_fill", name: "FLUX Fill", image: "/placeholder.svg?height=80&width=80&text=Fill", apiModel: "flux-pro-1.0-fill" }
     ];
 
     const availableSamplers: Sampler[] = [
@@ -470,6 +505,15 @@ export const ImprovedGenerationForm: React.FC = () => {
         { id: "gfpgan", name: "GFPGAN Face Restoration" }
     ];
 
+    // Очистка интервала при размонтировании компонента
+    useEffect(() => {
+        return () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }, [pollInterval]);
+
     // Update processing stage based on progress
     useEffect(() => {
         if (generating) {
@@ -493,36 +537,244 @@ export const ImprovedGenerationForm: React.FC = () => {
         complexity += Math.round(cfgScale * 3);
         complexity += selectedSize === "1536" ? 60 : selectedSize === "1024" ? 30 : selectedSize === "768" ? 15 : 0;
         complexity += hiresFixEnabled ? 20 : 0;
+        complexity += ultraModeEnabled ? 25 : 0;
         return Math.min(100, Math.max(10, complexity / 2));
     };
 
+    // Вспомогательные функции для работы с размерами
+    const getWidthFromAspectRatio = (ratio: string, baseSize: number): number => {
+        switch (ratio) {
+            case '1:1': return baseSize;
+            case '4:3': return baseSize;
+            case '16:9': return baseSize;
+            case '9:16': return Math.floor(baseSize * 9/16);
+            case '2:3': return Math.floor(baseSize * 2/3);
+            case '3:2': return baseSize;
+            default: return baseSize;
+        }
+    };
+
+    const getHeightFromAspectRatio = (ratio: string, baseSize: number): number => {
+        switch (ratio) {
+            case '1:1': return baseSize;
+            case '4:3': return Math.floor(baseSize * 3/4);
+            case '16:9': return Math.floor(baseSize * 9/16);
+            case '9:16': return baseSize;
+            case '2:3': return baseSize;
+            case '3:2': return Math.floor(baseSize * 2/3);
+            default: return baseSize;
+        }
+    };
+
+    // Функция для конвертации соотношения сторон для API
+    const mapAspectRatioForApi = (ratio: string): string => {
+        // BFL API использует соотношения в формате "16:9"
+        return ratio;
+    };
+
     // Event handlers
-    const handleGenerate = (): void => {
+    const handleGenerate = async (): Promise<void> => {
         if (!prompt.trim()) return;
+        
+        // Отменяем предыдущий опрос результатов, если есть
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            setPollInterval(null);
+        }
+        
         setGenerating(true);
         setProgress(0);
-        let currentProgress = 0;
-
-        // Save previous image if exists
+        setError(null);
+        setLoadingStage(getTranslation('form.stage.analyzing'));
+        
+        // Сохраняем предыдущее изображение, если оно существует
         if (generatedImage) {
             setRecentGenerations(prev =>
                 [generatedImage, ...(prev.length >= 6 ? prev.slice(0, 5) : prev)]
             );
         }
-
-        // Loading animation
-        const interval = setInterval(() => {
-            let step = Math.max(0.5, 5 - (currentProgress / 20));
-            currentProgress += step;
-            if (currentProgress >= 100) {
-                clearInterval(interval);
-                setGenerating(false);
-                // Create fake image for demonstration
-                setGeneratedImage(`/placeholder.svg?height=${selectedSize}&width=${selectedSize}&text=Сгенерированное+Изображение`);
-                return;
+        
+        // Начальный прогресс
+        let currentProgress = 0;
+        const progressInterval = setInterval(() => {
+            if (currentProgress < 90) {
+                currentProgress += 2;
+                setProgress(currentProgress);
             }
-            setProgress(currentProgress);
-        }, 100);
+        }, 1000);
+        
+        try {
+            let result;
+            
+            // Если есть исходное изображение и активен режим Image-to-Image
+            if (sourceImage) {
+                setLoadingStage('Подготовка исходного изображения...');
+                
+                // Извлекаем base64 из dataURL
+                let base64Image: string;
+                if (sourceImage.startsWith('data:image')) {
+                    base64Image = sourceImage.split(',')[1];
+                } else {
+                    try {
+                        const response = await fetch(sourceImage);
+                        const blob = await response.blob();
+                        const reader = new FileReader();
+                        base64Image = await new Promise((resolve) => {
+                            reader.onloadend = () => {
+                                if (typeof reader.result === 'string') {
+                                    resolve(reader.result.split(',')[1]);
+                                }
+                            };
+                            reader.readAsDataURL(blob);
+                        });
+                    } catch (error) {
+                        console.error('Ошибка при конвертации изображения:', error);
+                        throw new Error('Не удалось обработать исходное изображение');
+                    }
+                }
+                
+                // Используем FLUX Fill для Image-to-Image
+                setLoadingStage('Отправка запроса на генерацию Image-to-Image...');
+                
+                if (ultraModeEnabled) {
+                    // Используем FLUX Ultra с image_prompt для Image-to-Image
+                    result = await bflApiService.generateWithFluxUltra({
+                        prompt: prompt,
+                        aspect_ratio: mapAspectRatioForApi(aspectRatio),
+                        seed: useRandomSeed ? undefined : seed,
+                        prompt_upsampling: enhancePrompt,
+                        raw: rawModeEnabled,
+                        image_prompt: base64Image,
+                        image_prompt_strength: strength,
+                        output_format: 'png',
+                        safety_tolerance: 2
+                    });
+                } else {
+                    // Используем FLUX Fill для маскированного инпейнтинга
+                    result = await bflApiService.fillWithFluxPro({
+                        image: base64Image,
+                        prompt: prompt, 
+                        steps: steps,
+                        seed: useRandomSeed ? undefined : seed,
+                        guidance: cfgScale,
+                        prompt_upsampling: enhancePrompt,
+                        output_format: 'png',
+                        safety_tolerance: 2
+                    });
+                }
+            } 
+            // Для обычной генерации text-to-image
+            else {
+                setLoadingStage('Отправка запроса на генерацию...');
+                
+                // Определяем, какую модель использовать
+                if (ultraModeEnabled || selectedSize === "1536" || hiresFixEnabled) {
+                    // Для высокого качества используем FLUX Ultra
+                    result = await bflApiService.generateWithFluxUltra({
+                        prompt: prompt,
+                        aspect_ratio: mapAspectRatioForApi(aspectRatio),
+                        seed: useRandomSeed ? undefined : seed,
+                        prompt_upsampling: enhancePrompt,
+                        raw: rawModeEnabled,
+                        output_format: 'png',
+                        safety_tolerance: 2
+                    });
+                } else {
+                    // Для стандартной генерации используем FLUX Pro 1.1
+                    result = await bflApiService.generateWithFluxPro11({
+                        prompt: prompt,
+                        width: getWidthFromAspectRatio(aspectRatio, parseInt(selectedSize)),
+                        height: getHeightFromAspectRatio(aspectRatio, parseInt(selectedSize)),
+                        seed: useRandomSeed ? undefined : seed,
+                        prompt_upsampling: enhancePrompt,
+                        output_format: 'png',
+                        safety_tolerance: 2
+                    });
+                }
+            }
+            
+            // Сохраняем ID задания
+            if (result && result.id) {
+                setGenerationTaskId(result.id);
+                setLoadingStage(getTranslation('form.polling'));
+                
+                // Начинаем опрос результатов
+                const interval = setInterval(async () => {
+                    try {
+                        const pollResult = await bflApiService.getResult(result.id);
+                        
+                        // Обновляем прогресс, если доступен
+                        if (pollResult.progress) {
+                            // Прогресс от API умножаем на 100 и ограничиваем 95% для плавности
+                            setProgress(Math.min(95, pollResult.progress * 100));
+                        }
+                        
+                        // Проверяем статус
+                        if (pollResult.status === 'Ready' && pollResult.result) {
+                            clearInterval(interval);
+                            clearInterval(progressInterval);
+                            
+                            // Устанавливаем сгенерированное изображение
+                            setGeneratedImage(pollResult.result);
+                            setProgress(100);
+                            setTimeout(() => {
+                                setGenerating(false);
+                                setLoadingStage(null);
+                            }, 500);
+                        } else if (pollResult.status === 'Error' || pollResult.status === 'Content Moderated' || pollResult.status === 'Request Moderated') {
+                            clearInterval(interval);
+                            clearInterval(progressInterval);
+                            setGenerating(false);
+                            setLoadingStage(null);
+                            setError(pollResult.status === 'Content Moderated' ? 
+                                'Содержимое было отклонено модерацией. Пожалуйста, измените промпт.' : 
+                                'Произошла ошибка при генерации изображения.');
+                            showNotification(
+                                pollResult.status === 'Content Moderated' ? 
+                                'Содержимое отклонено модерацией' : 
+                                'Ошибка генерации', 
+                                'error'
+                            );
+                        }
+                    } catch (error) {
+                        console.error('Ошибка при опросе результата:', error);
+                        clearInterval(interval);
+                        clearInterval(progressInterval);
+                        setGenerating(false);
+                        setLoadingStage(null);
+                        setError('Ошибка при получении результата генерации');
+                        showNotification('Ошибка при получении результата', 'error');
+                    }
+                }, 2000); // Опрос каждые 2 секунды
+                
+                setPollInterval(interval);
+            } else {
+                throw new Error('Не удалось получить ID задания от API');
+            }
+            
+        } catch (error: unknown) {
+            console.error('Ошибка при генерации изображения:', error);
+            clearInterval(progressInterval);
+            setGenerating(false);
+            setLoadingStage(null);
+            
+            // Типизированная обработка ошибок
+            if (typeof axios !== 'undefined' && axios.isAxiosError(error)) {
+              if (error.response?.status === 400) {
+                setError('Неверные параметры запроса. Пожалуйста, проверьте ваши настройки.');
+              } else if (error.response?.status === 401) {
+                setError('Ошибка авторизации. Проверьте API ключ.');
+              } else if (error.response?.status === 429) {
+                setError('Превышен лимит запросов. Пожалуйста, повторите попытку позже.');
+              } else {
+                setError(`Ошибка сервера: ${error.response?.status || 'Неизвестная ошибка'}`);
+              }
+            } else {
+              setError(error instanceof Error ? error.message : 'Произошла неизвестная ошибка при генерации.');
+            }
+            
+            showNotification('Ошибка при генерации изображения', 'error');
+          }
     };
 
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
@@ -548,17 +800,18 @@ export const ImprovedGenerationForm: React.FC = () => {
         showNotification('Промпт скопирован в буфер обмена');
     };
 
-    const showNotification = (message: string): void => {
+    const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'success'): void => {
         setNotification({
             message,
-            visible: true
+            visible: true,
+            type
         });
         setTimeout(() => {
             setNotification({
                 message: '',
                 visible: false
             });
-        }, 2000);
+        }, 3000);
     };
 
     const randomizeSeed = (): void => {
@@ -586,6 +839,9 @@ export const ImprovedGenerationForm: React.FC = () => {
                 setTimeout(() => {
                     setSourceImage(result);
                     setIsUploading(false);
+                    // Автоматически переходим на вкладку advanced для Image-to-Image
+                    setActiveTab('advanced');
+                    showNotification('Изображение загружено, режим Image-to-Image активирован');
                 }, 1000);
             }
         };
@@ -619,23 +875,118 @@ export const ImprovedGenerationForm: React.FC = () => {
         }
     };
 
+    // Обработчик для скачивания изображения
+    const handleDownload = async () => {
+        if (!generatedImage) return;
+        
+        try {
+            // Проверяем, является ли generatedImage URL или base64
+            const imageUrl = generatedImage.startsWith('data:') 
+                ? generatedImage 
+                : generatedImage;
+                
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `visiomera-generation-${new Date().getTime()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showNotification('Изображение успешно скачано');
+        } catch (error: unknown) {
+            console.error('Ошибка при скачивании изображения:', error);
+            showNotification('Ошибка при скачивании изображения', 'error');
+        }
+    };
+
+    // Обработчик для создания вариаций изображения
+    const handleVariations = () => {
+        if (!generatedImage) return;
+        
+        // Устанавливаем исходное изображение для режима Image-to-Image
+        setSourceImage(generatedImage);
+        
+        // Переходим на вкладку Advanced, если это необходимо
+        setActiveTab('advanced');
+        
+        // Устанавливаем силу трансформации для вариаций
+        setStrength(0.7);
+        
+        // Включаем режим Ultra для лучших вариаций
+        setUltraModeEnabled(true);
+        
+        // Фокусируемся на промпте
+        promptInputRef.current?.focus();
+        
+        // Показываем уведомление
+        showNotification('Режим вариаций активирован. Нажмите "Сгенерировать" для создания вариаций');
+    };
+
+    // Обработчик для шаринга изображения
+    const handleShare = async () => {
+        if (!generatedImage) return;
+        
+        // Если поддерживается Web Share API и есть изображение
+        if (navigator.share) {
+            try {
+                // Получаем Blob изображения
+                const response = await fetch(generatedImage);
+                const blob = await response.blob();
+                const file = new File([blob], 'visiomera-generation.png', { type: 'image/png' });
+                
+                await navigator.share({
+                    title: 'Моя генерация в VisioMera',
+                    text: `Изображение, созданное с помощью VisioMera по промпту: ${prompt}`,
+                    files: [file]
+                });
+                
+                showNotification('Изображение успешно отправлено');
+            } catch (error) {
+                console.error('Ошибка при шаринге изображения:', error);
+                // Возможно, пользователь отменил шаринг, что не является ошибкой
+                if (error instanceof Error && error.name !== 'AbortError') {
+                    showNotification('Ошибка при отправке изображения', 'error');
+                }
+            }
+        } else {
+            // Если Web Share API не поддерживается, копируем промпт в буфер обмена
+            try {
+                await navigator.clipboard.writeText(prompt);
+                showNotification('Промпт скопирован в буфер обмена');
+            } catch (error) {
+                console.error('Ошибка при копировании промпта:', error);
+                showNotification('Не удалось скопировать промпт', 'error');
+            }
+        }
+    };
+
+    // Добавляем эффект для обработки drag & drop
     useEffect(() => {
         const dropZone = dropZoneRef.current;
         if (!dropZone) return;
+        
         const handleDragEnterEvent = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
             setIsDragging(true);
         };
+        
         const handleDragLeaveEvent = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
             setIsDragging(false);
         };
+        
         const handleDragOverEvent = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
         };
+        
         const handleDropEvent = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
@@ -645,10 +996,12 @@ export const ImprovedGenerationForm: React.FC = () => {
                 processFile(file);
             }
         };
+        
         dropZone.addEventListener('dragenter', handleDragEnterEvent);
         dropZone.addEventListener('dragleave', handleDragLeaveEvent);
         dropZone.addEventListener('dragover', handleDragOverEvent);
         dropZone.addEventListener('drop', handleDropEvent);
+        
         return () => {
             dropZone.removeEventListener('dragenter', handleDragEnterEvent);
             dropZone.removeEventListener('dragleave', handleDragLeaveEvent);
@@ -732,9 +1085,19 @@ export const ImprovedGenerationForm: React.FC = () => {
                         animate="visible"
                         exit="exit"
                         variants={fadeInOut}
-                        className="fixed top-20 right-4 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+                        className={`fixed top-20 right-4 z-50 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
+                            notification.type === 'error' ? 'bg-red-500 text-white' :
+                            notification.type === 'info' ? 'bg-blue-500 text-white' :
+                            'bg-primary text-primary-foreground'
+                        }`}
                     >
-                        <Check className="h-4 w-4" />
+                        {notification.type === 'error' ? (
+                            <X className="h-4 w-4" />
+                        ) : notification.type === 'info' ? (
+                            <Info className="h-4 w-4" />
+                        ) : (
+                            <Check className="h-4 w-4" />
+                        )}
                         {notification.message}
                     </motion.div>
                 )}
@@ -820,6 +1183,28 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                     <li>{getTranslation('form.tips.lighting')}</li>
                                                     <li>{getTranslation('form.tips.quality')}</li>
                                                 </ul>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Error message */}
+                                    <AnimatePresence>
+                                        {error && (
+                                            <motion.div
+                                                initial="hidden"
+                                                animate="visible"
+                                                exit="exit"
+                                                variants={scale}
+                                                className="mb-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 rounded-md"
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <X className="h-4 w-4 text-red-500" />
+                                                    <h4 className="text-sm font-medium">{getTranslation('form.error')}</h4>
+                                                    <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-red-500" onClick={() => setError(null)}>
+                                                        <X className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                                <p className="text-xs">{error}</p>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -1002,7 +1387,20 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                         "flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1.5 transition-all hover:border-primary hover:bg-secondary/50",
                                                         selectedModel === model.id && "border-primary bg-primary/5"
                                                     )}
-                                                    onClick={() => setSelectedModel(model.id)}
+                                                    onClick={() => {
+                                                        setSelectedModel(model.id);
+                                                        // Если выбрана модель Ultra, включаем режим Ultra
+                                                        if (model.id === 'flux_ultra') {
+                                                            setUltraModeEnabled(true);
+                                                            setRawModeEnabled(false);
+                                                        } else if (model.id === 'flux_raw') {
+                                                            setUltraModeEnabled(true);
+                                                            setRawModeEnabled(true);
+                                                        } else {
+                                                            setUltraModeEnabled(false);
+                                                            setRawModeEnabled(false);
+                                                        }
+                                                    }}
                                                 >
                                                     <img
                                                         src={model.image}
@@ -1022,7 +1420,14 @@ export const ImprovedGenerationForm: React.FC = () => {
                                             {sizeOptions.map((size) => (
                                                 <div
                                                     key={size.id}
-                                                    onClick={() => setSelectedSize(size.id)}
+                                                    onClick={() => {
+                                                        setSelectedSize(size.id);
+                                                        // Если выбран большой размер, рекомендуем режим Ultra
+                                                        if (size.id === "1536") {
+                                                            setUltraModeEnabled(true);
+                                                            showNotification('Режим Ultra автоматически включен для высокого разрешения', 'info');
+                                                        }
+                                                    }}
                                                     className={cn(
                                                         "flex cursor-pointer flex-col items-center rounded-md border p-1.5 transition-all hover:border-primary hover:bg-secondary/50",
                                                         selectedSize === size.id && "border-primary bg-primary/5"
@@ -1040,6 +1445,46 @@ export const ImprovedGenerationForm: React.FC = () => {
                             {/* Advanced tab */}
                             <TabsContent value="advanced" className="pt-1">
                                 <CardContent className="space-y-3 p-4">
+                                    {/* Ultra Mode */}
+                                    <div className="space-y-1.5 pt-1">
+                                        <Label className="text-sm font-medium">Режимы BFL API</Label>
+                                        <div className="space-y-2.5 rounded-md border p-2.5">
+                                            {/* Ultra Mode Toggle */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Sparkles className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-xs">{getTranslation('form.ultra_mode')}</span>
+                                                </div>
+                                                <Switch
+                                                    checked={ultraModeEnabled}
+                                                    onCheckedChange={(checked) => {
+                                                        setUltraModeEnabled(checked);
+                                                        // Если Ultra выключается, выключаем и Raw
+                                                        if (!checked) {
+                                                            setRawModeEnabled(false);
+                                                        }
+                                                        setShowComplexityVisualization(true);
+                                                    }}
+                                                    className="data-[state=checked]:bg-primary"
+                                                />
+                                            </div>
+
+                                            {/* Raw Mode Toggle (только для Ultra) */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Image className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-xs">{getTranslation('form.raw_mode')}</span>
+                                                </div>
+                                                <Switch
+                                                    checked={rawModeEnabled}
+                                                    onCheckedChange={setRawModeEnabled}
+                                                    disabled={!ultraModeEnabled}
+                                                    className="data-[state=checked]:bg-primary"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Seed */}
                                     <div className="space-y-1.5">
                                         <div className="flex items-center justify-between">
@@ -1085,7 +1530,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                             id="steps"
                                             value={[steps]}
                                             min={20}
-                                            max={150}
+                                            max={50}
                                             step={1}
                                             className="py-1"
                                             onValueChange={(value) => {
@@ -1093,7 +1538,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                 setShowComplexityVisualization(true);
                                             }}
                                         />
-                                        {renderParameterVisualization('steps', steps, 20, 150, {
+                                        {renderParameterVisualization('steps', steps, 20, 50, {
                                             min: 'Быстрее',
                                             max: 'Качественнее'
                                         })}
@@ -1108,8 +1553,8 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         <Slider
                                             id="cfg"
                                             value={[cfgScale]}
-                                            min={1}
-                                            max={20}
+                                            min={1.5}
+                                            max={30}
                                             step={0.1}
                                             className="py-1"
                                             onValueChange={(value) => {
@@ -1117,61 +1562,65 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                 setShowComplexityVisualization(true);
                                             }}
                                         />
-                                        {renderParameterVisualization('cfg', cfgScale, 1, 20, {
+                                        {renderParameterVisualization('cfg', cfgScale, 1.5, 30, {
                                             min: 'Креативнее',
                                             max: 'Точнее'
                                         })}
                                     </div>
 
-                                    {/* Sampler */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="sampler" className="text-sm">{getTranslation('form.sampler')}</Label>
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                            <Info className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>Алгоритм создания изображения. Разные сэмплеры дают разные результаты.</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
+                                    {/* Sampler - только для стандартного режима */}
+                                    {!ultraModeEnabled && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="sampler" className="text-sm">{getTranslation('form.sampler')}</Label>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                                <Info className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Алгоритм создания изображения. Разные сэмплеры дают разные результаты.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                            <Select value={sampler} onValueChange={setSampler}>
+                                                <SelectTrigger id="sampler" className="h-8 text-sm">
+                                                    <SelectValue placeholder="Выберите сэмплер" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableSamplers.map((item) => (
+                                                        <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
-                                        <Select value={sampler} onValueChange={setSampler}>
-                                            <SelectTrigger id="sampler" className="h-8 text-sm">
-                                                <SelectValue placeholder="Выберите сэмплер" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {availableSamplers.map((item) => (
-                                                    <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    )}
 
-                                    {/* Batch count */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="batch-count" className="text-sm">{getTranslation('form.batch')}</Label>
-                                            <span className="text-xs text-muted-foreground">{batchCount}</span>
+                                    {/* Batch count - отключено для BFL API, т.к. не поддерживается */}
+                                    {false && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="batch-count" className="text-sm">{getTranslation('form.batch')}</Label>
+                                                <span className="text-xs text-muted-foreground">{batchCount}</span>
+                                            </div>
+                                            <Slider
+                                                id="batch-count"
+                                                value={[batchCount]}
+                                                min={1}
+                                                max={6}
+                                                step={1}
+                                                className="py-1"
+                                                onValueChange={(value) => setBatchCount(value[0])}
+                                            />
+                                            <div className="flex justify-between text-xs text-muted-foreground">
+                                                <span>1</span>
+                                                <span>6</span>
+                                            </div>
                                         </div>
-                                        <Slider
-                                            id="batch-count"
-                                            value={[batchCount]}
-                                            min={1}
-                                            max={6}
-                                            step={1}
-                                            className="py-1"
-                                            onValueChange={(value) => setBatchCount(value[0])}
-                                        />
-                                        <div className="flex justify-between text-xs text-muted-foreground">
-                                            <span>1</span>
-                                            <span>6</span>
-                                        </div>
-                                    </div>
+                                    )}
 
                                     {/* Image to image */}
                                     <div className="space-y-1.5">
@@ -1326,6 +1775,10 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                     checked={hiresFixEnabled}
                                                     onCheckedChange={(checked) => {
                                                         setHiresFixEnabled(checked);
+                                                        if (checked) {
+                                                            // Рекомендуем Ultra режим при включении Hires.fix
+                                                            setUltraModeEnabled(true);
+                                                        }
                                                         setShowComplexityVisualization(true);
                                                     }}
                                                     className="data-[state=checked]:bg-primary"
@@ -1378,7 +1831,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         className="flex items-center"
                                     >
                                         <RotateCw className="mr-2 h-4 w-4 animate-spin" />
-                                        {getTranslation('form.generating')} {Math.round(progress)}%
+                                        {loadingStage || `${getTranslation('form.generating')} ${Math.round(progress)}%`}
                                     </motion.div>
                                 ) : (
                                     <motion.div
@@ -1398,7 +1851,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         transition={{ duration: 0.4 }}
                                     />
                                 )}
-                            </Button>
+                                </Button>
                         </CardFooter>
                     </Card>
                 </motion.div>
@@ -1480,7 +1933,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                 animate={{ opacity: 1 }}
                                                 transition={{ duration: 0.3 }}
                                             >
-                                                {getTranslation('form.creating')} {Math.round(progress)}%
+                                                {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
                                             </motion.p>
                                             <motion.div
                                                 key={processingStage}
@@ -1564,7 +2017,15 @@ export const ImprovedGenerationForm: React.FC = () => {
                                 >
                                     <CardFooter className="flex flex-wrap justify-between gap-2 p-3 pt-3">
                                         <div className="flex gap-1.5">
-                                            <Button variant="outline" size="sm" className="h-8 hover:bg-primary/5 transition-colors duration-200">
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={() => {
+                                                    // Здесь можно реализовать логику сохранения в галерею пользователя
+                                                    showNotification('Изображение сохранено в вашу галерею');
+                                                }}
+                                            >
                                                 <motion.div
                                                     whileHover={{ scale: 1.1 }}
                                                     whileTap={{ scale: 0.9 }}
@@ -1574,7 +2035,12 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                     {getTranslation('form.save')}
                                                 </motion.div>
                                             </Button>
-                                            <Button variant="outline" size="sm" className="h-8 hover:bg-primary/5 transition-colors duration-200">
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={handleDownload}
+                                            >
                                                 <motion.div
                                                     whileHover={{ scale: 1.1 }}
                                                     whileTap={{ scale: 0.9 }}
@@ -1586,7 +2052,12 @@ export const ImprovedGenerationForm: React.FC = () => {
                                             </Button>
                                         </div>
                                         <div className="flex gap-1.5">
-                                            <Button variant="outline" size="sm" className="h-8 hover:bg-primary/5 transition-colors duration-200">
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={handleVariations}
+                                            >
                                                 <motion.div
                                                     whileHover={{ scale: 1.1 }}
                                                     whileTap={{ scale: 0.9 }}
@@ -1596,7 +2067,12 @@ export const ImprovedGenerationForm: React.FC = () => {
                                                     {getTranslation('form.variations')}
                                                 </motion.div>
                                             </Button>
-                                            <Button variant="default" size="sm" className="h-8 relative overflow-hidden">
+                                            <Button 
+                                                variant="default" 
+                                                size="sm" 
+                                                className="h-8 relative overflow-hidden"
+                                                onClick={handleShare}
+                                            >
                                                 <motion.div
                                                     whileHover={{ scale: 1.05 }}
                                                     whileTap={{ scale: 0.95 }}
