@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { useAuth } from '@/components/auth-context';
 import {
     Sparkles,
     Save,
@@ -44,21 +45,22 @@ import { useLanguage } from "@/components/language-context";
 import { imageService } from "../services/image-service";
 import { bflApiService } from "@/services/bfl-api";
 
-// Сохраняем image
-const saveImageToServer = async (imageData: string, prompt: string): Promise<{success: boolean, path?: string, error?: string}> => {
+// Обновленная функция сохранения изображения на сервере
+const saveImageToServer = async (
+    imageData: string, 
+    prompt: string, 
+    userId?: number
+  ): Promise<{success: boolean, path?: string, artworkId?: number, error?: string}> => {
     try {
       // Генерируем уникальное имя файла с датой и частью промпта
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const sanitizedPrompt = prompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
       const filename = `image_${timestamp}_${sanitizedPrompt}.png`;
       
-      const response = await axios.post('/api/save-image', {
-        imageData,
-        filename,
-        prompt
-      });
+      // Используем сервис для сохранения с передачей userId
+      const response = await imageService.saveImage(imageData, prompt, userId);
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Ошибка при сохранении изображения:', error);
       return { success: false, error: 'Не удалось сохранить изображение' };
@@ -150,7 +152,9 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [negativePrompt, setNegativePrompt] = useState<string>("");
     const [error, setError] = useState<string | null>(null);
     const [loadingStage, setLoadingStage] = useState<string | null>(null);
-    
+    const { user } = useAuth();
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
     // UI settings
     const [showTagSuggestions, setShowTagSuggestions] = useState<boolean>(false);
     const [zoomLevel, setZoomLevel] = useState<number>(100);
@@ -827,7 +831,27 @@ export const ImprovedGenerationForm: React.FC = () => {
                                     console.error('Ошибка: imageData не является строкой:', imageData);
                                     throw new Error('Полученные данные изображения имеют неправильный формат');
                                 }
-                                
+                                // Автоматически сохраняем изображение если пользователь авторизован
+                            // Автоматически сохраняем изображение если пользователь авторизован
+                            if (user) {
+                                try {
+                                // Сохраняем изображение с привязкой к пользователю
+                                const saveResult = await saveImageToServer(imageData, prompt, user.id);
+                                if (saveResult.success) {
+                                    console.log('Изображение успешно сохранено и привязано к аккаунту:', saveResult.path);
+                                    
+                                    // Обновляем путь к изображению на тот, который вернул сервер (если он отличается)
+                                    if (saveResult.path && saveResult.path !== imageData) {
+                                    setGeneratedImage(saveResult.path);
+                                    }
+                                } else {
+                                    console.error('Ошибка при сохранении на сервере:', saveResult.error);
+                                }
+                                } catch (error) {
+                                console.error('Ошибка при автоматическом сохранении изображения:', error);
+                                // Не показываем ошибку пользователю, чтобы не прерывать процесс
+                                }
+                            }
                                 // Установка изображения
                                 setGeneratedImage(imageData);
                                 
@@ -839,18 +863,18 @@ export const ImprovedGenerationForm: React.FC = () => {
                                 }, 500);
                                 
                                // Автоматически сохраняем изображение - замените этот блок
-                                try {
-                                    // Функция сохранения из шага 3
-                                    const saveResult = await saveImageToServer(imageData, prompt);
-                                    if (saveResult.success) {
-                                        console.log('Изображение успешно сохранено на сервере:', saveResult.path);
-                                        showNotification('Изображение сохранено в галерее', 'success');
-                                    } else {
-                                        console.error('Ошибка при сохранении на сервере:', saveResult.error);
-                                    }
-                                } catch (error) {
-                                    console.error('Ошибка при сохранении изображения:', error);
+                               try {
+                                // Функция сохранения с передачей userId пользователя
+                                const saveResult = await saveImageToServer(imageData, prompt, user?.id);
+                                if (saveResult.success) {
+                                  console.log('Изображение успешно сохранено на сервере:', saveResult.path);
+                                  showNotification('Изображение сохранено в галерее', 'success');
+                                } else {
+                                  console.error('Ошибка при сохранении на сервере:', saveResult.error);
                                 }
+                              } catch (error) {
+                                console.error('Ошибка при сохранении изображения:', error);
+                              }
                                 
                                 // Добавляем в недавние изображения
                                 setRecentGenerations(prev => [imageData, ...(prev.length >= 6 ? prev.slice(0, 5) : prev)]);
@@ -1150,8 +1174,56 @@ const handleDownload = async () => {
             }
         }
     };
-
-    // Добавляем эффект для обработки drag & drop
+    
+        // Функция для публикации работы в Community
+    // Функция для публикации работы в Community
+    const handleShareToCommunity = async () => {
+        if (!generatedImage || !user?.id) {
+        showNotification('Для публикации необходимо создать изображение и авторизоваться', 'error');
+        return;
+        }
+        
+        try {
+        // Проверяем, сохранено ли уже изображение
+        let imagePath = generatedImage;
+        
+        // Если изображение еще не сохранено (например, base64), сначала сохраняем его
+        if (generatedImage.startsWith('data:image')) {
+            const saveResult = await saveImageToServer(generatedImage, prompt, user.id);
+            if (!saveResult.success) {
+            throw new Error('Не удалось сохранить изображение перед публикацией');
+            }
+            imagePath = saveResult.path || '';
+        }
+        
+        // Публикуем работу в Community через новую функцию в imageService
+        const publishResult = await imageService.publishToCommunity({
+            userId: user.id,
+            imageUrl: imagePath,
+            prompt: prompt,
+            title: prompt.substring(0, 100),
+            description: prompt,
+            model: selectedModel,
+            parameters: {
+            steps,
+            cfgScale,
+            seed,
+            sampler
+            }
+        });
+        
+        if (!publishResult.success) {
+            throw new Error(publishResult.error || 'Ошибка при публикации работы');
+        }
+        
+        showNotification('Работа успешно опубликована в Community', 'success');
+        } catch (error) {
+        console.error('Ошибка при публикации работы:', error);
+        showNotification('Не удалось опубликовать работу', 'error');
+        }
+    };
+  
+  // Добавляем эффект для обработки drag & drop
     useEffect(() => {
         const dropZone = dropZoneRef.current;
         if (!dropZone) return;
@@ -1196,6 +1268,7 @@ const handleDownload = async () => {
         };
     }, []);
 
+    
     const renderComplexityVisualization = () => {
         const complexity = calculateComplexity();
         return (
@@ -2201,82 +2274,101 @@ const handleDownload = async () => {
                                     exit={{ opacity: 0, y: 20 }}
                                     transition={{ duration: 0.3 }}
                                 >
-                                    <CardFooter className="flex flex-wrap justify-between gap-2 p-3 pt-3">
+                                    <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
                                         <div className="flex gap-1.5">
                                             <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={() => {
-                                                    // Здесь можно реализовать логику сохранения в галерею пользователя
-                                                    showNotification('Изображение сохранено в вашу галерею');
-                                                }}
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                            onClick={() => {
+                                                // Здесь можно реализовать логику сохранения в галерею пользователя
+                                                showNotification('Изображение сохранено в вашу галерею');
+                                            }}
                                             >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Save className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.save')}
-                                                </motion.div>
+                                            <motion.div
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                className="flex items-center"
+                                            >
+                                                <Save className="mr-1.5 h-3.5 w-3.5" />
+                                                {getTranslation('form.save')}
+                                            </motion.div>
                                             </Button>
                                             <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={handleDownload}
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                            onClick={handleDownload}
                                             >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Download className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.download')}
-                                                </motion.div>
+                                            <motion.div
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                className="flex items-center"
+                                            >
+                                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                                                {getTranslation('form.download')}
+                                            </motion.div>
                                             </Button>
                                         </div>
                                         <div className="flex gap-1.5">
                                             <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={handleVariations}
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                            onClick={handleVariations}
                                             >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.variations')}
-                                                </motion.div>
+                                            <motion.div
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                className="flex items-center"
+                                            >
+                                                <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                                                {getTranslation('form.variations')}
+                                            </motion.div>
                                             </Button>
                                             <Button 
-                                                variant="default" 
-                                                size="sm" 
-                                                className="h-8 relative overflow-hidden"
-                                                onClick={handleShare}
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                            onClick={handleShare}
                                             >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.05 }}
-                                                    whileTap={{ scale: 0.95 }}
-                                                    className="flex items-center relative z-10"
-                                                >
-                                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.share')}
-                                                </motion.div>
-                                                <motion.span
-                                                    className="absolute inset-0 bg-white/10"
-                                                    initial={{ scale: 0, opacity: 0 }}
-                                                    whileHover={{ scale: 1.5, opacity: 0.2 }}
-                                                    transition={{ duration: 0.4 }}
-                                                />
+                                            <motion.div
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                className="flex items-center"
+                                            >
+                                                <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                                {getTranslation('form.share')}
+                                            </motion.div>
+                                            </Button>
+                                            
+                                            {/* Новая кнопка для публикации в Community */}
+                                            <Button 
+                                            variant="default" 
+                                            size="sm" 
+                                            className="h-8 relative overflow-hidden"
+                                            onClick={handleShareToCommunity}
+                                            disabled={isProcessing || !user}
+                                            >
+                                            <motion.div
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                className="flex items-center relative z-10"
+                                            >
+                                                <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                                {isProcessing ? 'Публикация...' : 'В сообщество'}
+                                            </motion.div>
+                                            <motion.span
+                                                className="absolute inset-0 bg-white/10"
+                                                initial={{ scale: 0, opacity: 0 }}
+                                                whileHover={{ scale: 1.5, opacity: 0.2 }}
+                                                transition={{ duration: 0.4 }}
+                                            />
                                             </Button>
                                         </div>
-                                    </CardFooter>
+                                        </CardFooter>
                                 </motion.div>
+
                             )}
                         </AnimatePresence>
 

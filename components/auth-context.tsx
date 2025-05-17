@@ -14,6 +14,7 @@ interface Notification {
 
 // Определение типа для данных пользователя
 interface UserProfile {
+  avatar: string;
   id: number;
   username: string;
   email: string;

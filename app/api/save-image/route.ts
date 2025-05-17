@@ -6,7 +6,7 @@ import path from 'path';
 // Важно! Именованный экспорт, а не export default
 export async function POST(request: NextRequest) {
   try {
-    const { imageData, filename, prompt } = await request.json();
+    const { imageData, filename, prompt, userId } = await request.json();
     
     // Удаляем заголовок data:image/png;base64, если он есть
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
           prompt,
           created: new Date().toISOString(),
           filename,
-          sourceUrl: imageData
+          sourceUrl: imageData,
+          userId: userId // Сохраняем ID пользователя
         };
         
         // Сохраняем метаданные в отдельный JSON файл
@@ -44,6 +45,24 @@ export async function POST(request: NextRequest) {
         // Сохраняем файл изображения
         const filepath = path.join(dir, filename);
         fs.writeFileSync(filepath, Buffer.from(buffer));
+
+        // Если предоставлен userId, можно добавить запись в базу данных
+        // Эта часть закомментирована, так как возможно у вас нет доступа к БД в этом маршруте
+        /*
+        if (userId) {
+          try {
+            const db = await import('@/db').then(module => module.default);
+            // Добавляем запись в базу данных
+            await db.query(
+              'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+              [userId, prompt.substring(0, 100), prompt, `/generated/${filename}`, prompt, 'flux_realistic', false]
+            );
+          } catch (dbError) {
+            console.error('Ошибка при сохранении в БД:', dbError);
+            // Продолжаем выполнение, даже если сохранение в БД не удалось
+          }
+        }
+        */
         
         return NextResponse.json({ 
           success: true, 
@@ -52,7 +71,7 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error('Ошибка при сохранении изображения с URL:', error);
         return NextResponse.json(
-          { error: 'Ошибка при сохранении изображения с URL', message: error.message },
+          { success: false, error: 'Ошибка при сохранении изображения с URL' },
           { status: 500 }
         );
       }
@@ -70,7 +89,8 @@ export async function POST(request: NextRequest) {
       const metadata = {
         prompt,
         created: new Date().toISOString(),
-        filename
+        filename,
+        userId: userId // Сохраняем ID пользователя
       };
       
       // Сохраняем метаданные в отдельный JSON файл
@@ -80,6 +100,24 @@ export async function POST(request: NextRequest) {
       // Сохраняем файл изображения
       const filepath = path.join(dir, filename);
       fs.writeFileSync(filepath, buffer);
+
+      // Если предоставлен userId, можно добавить запись в базу данных
+      // Эта часть закомментирована, так как возможно у вас нет доступа к БД в этом маршруте
+      /*
+      if (userId) {
+        try {
+          const db = await import('@/db').then(module => module.default);
+          // Добавляем запись в базу данных
+          await db.query(
+            'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [userId, prompt.substring(0, 100), prompt, `/generated/${filename}`, prompt, 'flux_realistic', false]
+          );
+        } catch (dbError) {
+          console.error('Ошибка при сохранении в БД:', dbError);
+          // Продолжаем выполнение, даже если сохранение в БД не удалось
+        }
+      }
+      */
       
       return NextResponse.json({ 
         success: true, 
@@ -89,7 +127,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Ошибка при сохранении изображения:', error);
     return NextResponse.json(
-      { error: 'Ошибка при сохранении изображения', message: error.message },
+      { success: false, error: 'Ошибка при сохранении изображения', message: error.message },
       { status: 500 }
     );
   }

@@ -18,8 +18,14 @@ interface GetImagesResponse {
   error?: string;
 }
 
+interface PublishResponse {
+  success: boolean;
+  artworkId?: number;
+  error?: string;
+}
+
 export class ImageService {
-  async saveImage(imageData: string, prompt: string): Promise<SaveImageResponse> {
+  async saveImage(imageData: string, prompt: string, userId?: number): Promise<SaveImageResponse> {
     try {
       // Генерируем уникальное имя файла с датой и частью промпта
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -29,7 +35,8 @@ export class ImageService {
       const response = await axios.post('/api/save-image', {
         imageData,
         filename,
-        prompt
+        prompt,
+        userId // Добавляем userId в запрос
       });
       
       return response.data;
@@ -46,6 +53,34 @@ export class ImageService {
     } catch (error) {
       console.error('Ошибка при получении списка изображений:', error);
       return { images: [], error: 'Не удалось получить список изображений' };
+    }
+  }
+
+  // Новая функция для публикации изображения в сообщество
+  async publishToCommunity(data: {
+    userId: number;
+    imageUrl: string;
+    prompt: string;
+    title?: string;
+    description?: string;
+    model?: string;
+    parameters?: any;
+  }): Promise<PublishResponse> {
+    try {
+      const response = await axios.post('@/api/artwork/publish', {
+        userId: data.userId,
+        imageUrl: data.imageUrl,
+        prompt: data.prompt,
+        title: data.title || data.prompt.substring(0, 100),
+        description: data.description || data.prompt,
+        model: data.model || 'flux_realistic',
+        parameters: data.parameters || {}
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при публикации изображения в сообщество:', error);
+      return { success: false, error: 'Не удалось опубликовать изображение в сообщество' };
     }
   }
 }

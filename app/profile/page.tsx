@@ -1,43 +1,54 @@
-"use client"; // Added "use client"
+"use client";
 
-import { useEffect } from "react"; // Removed useState, оставили только useEffect
+import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
-import { ParticlesBackground } from "@/components/particles-background"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { BarChart, Image, Heart, Trophy, Users, Bookmark, Settings, Edit, LogOut, Loader2 } from "lucide-react"
+import { ParticlesBackground } from "@/components/particles-background";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { 
+  BarChart, 
+  Image, 
+  Heart, 
+  Trophy, 
+  Users, 
+  Bookmark, 
+  Settings, 
+  Edit, 
+  LogOut, 
+  Loader2, 
+  Eye, 
+  Share2, 
+  Download 
+} from "lucide-react";
 import { useLanguage, useLocalTranslation } from "@/components/language-context";
-import { useAuth } from "@/components/auth-context"; // Добавили импорт useAuth
+import { useAuth } from "@/components/auth-context";
+import { getUserHistory } from "@/services/api-service";
+import { Artwork } from "@/services/api-service";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-// Define a type for the user data
-interface UserProfile {
-  id: number;
-  username: string;
-  email: string;
-  displayName: string | null;
-  bio: string | null;
-  avatarUrl: string | null;
-  createdAt: string;
-  isVerified: boolean;
-  // Add other fields as needed based on API response
-  generations?: number; // Example additional fields
-  likes?: number;
-  competitions?: number;
-  followers?: number;
-}
-
+/**
+ * Компонент страницы профиля пользователя
+ * Отображает информацию о пользователе, его работы, статистику и коллекции
+ */
 export default function ProfilePage() {
   const router = useRouter();
   const { user, loading, error, isAuthenticated, logout } = useAuth();
+  const { language } = useLanguage();
+  
+  // Состояния для работы с артворками пользователя
+  const [userArtworks, setUserArtworks] = useState<Artwork[]>([]);
+  const [artworksLoading, setArtworksLoading] = useState(false);
+  const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Translations (simplified for brevity, use your context)
+  // Translations
   const pageTranslations = {
     en: {
       'profile.edit': 'Edit Profile',
-      'profile.follow': 'Follow', // Assuming follow functionality exists
+      'profile.follow': 'Follow',
       'profile.logout': 'Log Out',
       'profile.generations': 'Generations',
       'profile.likes': 'Likes',
@@ -52,12 +63,22 @@ export default function ProfilePage() {
       'profile.artwork': 'Artwork',
       'profile.view': 'View',
       'profile.edit_artwork': 'Edit',
+      'profile.share_artwork': 'Share',
+      'profile.download': 'Download',
       'profile.collection_items': 'items',
       'profile.activity_stats': 'Activity Stats',
       'profile.activity_chart_placeholder': 'Activity chart would be displayed here',
       'profile.recent_activity': 'Recent Activity',
       'profile.achievements_title': 'Achievements',
       'profile.achievements_placeholder': 'Achievements list would be displayed here',
+      'profile.no_artworks': 'You don\'t have any artworks yet. Create your first generation on the home page!',
+      'profile.download_success': 'Image downloaded successfully',
+      'profile.share_success': 'Image shared to community successfully',
+      'profile.artwork_details': 'Artwork Details',
+      'profile.created_at': 'Created at',
+      'profile.prompt': 'Prompt',
+      'profile.model': 'Model',
+      'profile.close': 'Close',
     },
     ru: {
       'profile.edit': 'Редактировать профиль',
@@ -76,12 +97,22 @@ export default function ProfilePage() {
       'profile.artwork': 'Работа',
       'profile.view': 'Просмотр',
       'profile.edit_artwork': 'Редактировать',
+      'profile.share_artwork': 'Поделиться',
+      'profile.download': 'Скачать',
       'profile.collection_items': 'элементов',
       'profile.activity_stats': 'Статистика активности',
       'profile.activity_chart_placeholder': 'Здесь будет отображаться график активности',
       'profile.recent_activity': 'Недавняя активность',
       'profile.achievements_title': 'Достижения',
       'profile.achievements_placeholder': 'Здесь будет отображаться список достижений',
+      'profile.no_artworks': 'У вас пока нет работ. Создайте свою первую генерацию на главной странице!',
+      'profile.download_success': 'Изображение успешно скачано',
+      'profile.share_success': 'Изображение успешно опубликовано в сообществе',
+      'profile.artwork_details': 'Детали работы',
+      'profile.created_at': 'Создано',
+      'profile.prompt': 'Промпт',
+      'profile.model': 'Модель',
+      'profile.close': 'Закрыть',
     }
   };
   const { localT } = useLocalTranslation(pageTranslations);
@@ -93,9 +124,98 @@ export default function ProfilePage() {
     }
   }, [loading, isAuthenticated, router]);
 
+  // Загрузка работ пользователя
+  useEffect(() => {
+    const fetchUserArtworks = async () => {
+      if (!user?.id) return;
+      
+      setArtworksLoading(true);
+      try {
+        const response = await getUserHistory({
+          userId: user.id,
+          limit: 9, // Показываем только 9 последних работ на странице профиля
+          offset: 0
+        });
+        
+        if (response && response.artworks) {
+          setUserArtworks(response.artworks);
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке работ пользователя:', error);
+      } finally {
+        setArtworksLoading(false);
+      }
+    };
+    
+    if (user) {
+      fetchUserArtworks();
+    }
+  }, [user]);
+
   const handleLogout = () => {
     logout(); // Используем функцию logout из контекста аутентификации
     router.push('/login'); // Перенаправляем на страницу входа после выхода
+  };
+
+  // Обработчик для скачивания изображения
+  const handleDownloadArtwork = async (artwork: Artwork) => {
+    try {
+      const response = await fetch(artwork.image_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `artwork_${artwork.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      alert(localT('profile.download_success'));
+    } catch (error) {
+      console.error('Ошибка при скачивании изображения:', error);
+    }
+  };
+
+  // Обработчик для публикации работы в сообществе
+  const handleShareToCommunity = async (artwork: Artwork) => {
+    try {
+      const response = await fetch('/api/artwork/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          imageUrl: artwork.image_url,
+          prompt: artwork.prompt,
+          title: artwork.title,
+          description: artwork.prompt,
+          model: artwork.model || 'flux_realistic',
+          parameters: artwork.parameters || {}
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Ошибка при публикации работы');
+      }
+      
+      alert(localT('profile.share_success'));
+    } catch (error) {
+      console.error('Ошибка при публикации работы:', error);
+    }
+  };
+
+  // Форматирование даты
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString(language === 'en' ? 'en-US' : 'ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -137,7 +257,7 @@ export default function ProfilePage() {
   };
 
   const stats = [
-    { title: localT('profile.generations'), value: formatNumber(user.generations), icon: Image },
+    { title: localT('profile.generations'), value: formatNumber(user.generations || userArtworks.length), icon: Image },
     { title: localT('profile.likes'), value: formatNumber(user.likes), icon: Heart },
     { title: localT('profile.competitions'), value: formatNumber(user.competitions), icon: Trophy },
     { title: localT('profile.followers'), value: formatNumber(user.followers), icon: Users },
@@ -152,7 +272,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <img
-                src={user.avatarUrl || `/placeholder.svg?height=128&width=128&text=${user.username.substring(0, 2).toUpperCase()}`}
+                src={user.avatar || `/placeholder.svg?height=128&width=128&text=${user.username.substring(0, 2).toUpperCase()}`}
                 alt={`${user.displayName || user.username}'s profile`}
                 className="h-24 w-24 rounded-full object-cover bg-muted"
               />
@@ -224,34 +344,57 @@ export default function ProfilePage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Portfolio Tab - Needs dynamic data fetching */}
+          {/* Portfolio Tab - With dynamic data fetching */}
           <TabsContent value="portfolio" className="mt-0">
             <Card>
               <CardHeader>
                 <CardTitle>{localT('profile.portfolio')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="image-grid">
-                  {Array.from({ length: 9 }).map((_, i) => (
-                    <div key={i} className="group relative aspect-square overflow-hidden rounded-md bg-muted">
-                      <img
-                        src={`/placeholder.svg?height=300&width=300&text=${localT('profile.artwork')}+${i + 1}`}
-                        alt={`${localT('profile.artwork')} ${i + 1}`}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="secondary">
-                            {localT('profile.view')}
-                          </Button>
-                          <Button size="sm" variant="secondary">
-                            {localT('profile.edit_artwork')}
-                          </Button>
+                {artworksLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : userArtworks.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {userArtworks.map((artwork) => (
+                      <div key={artwork.id} className="group relative aspect-square overflow-hidden rounded-md bg-muted">
+                        <img
+                          src={artwork.image_url}
+                          alt={artwork.title || localT('profile.artwork')}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={() => {
+                                setSelectedArtwork(artwork);
+                                setDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="mr-1 h-3 w-3" />
+                              {localT('profile.view')}
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={() => handleShareToCommunity(artwork)}
+                            >
+                              <Share2 className="mr-1 h-3 w-3" />
+                              {localT('profile.share_artwork')}
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    {localT('profile.no_artworks')}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -348,7 +491,7 @@ export default function ProfilePage() {
                 <CardTitle>{localT('profile.achievements_title')}</CardTitle>
               </CardHeader>
               <CardContent>
-                 <div className="h-[200px] w-full flex items-center justify-center bg-muted rounded-md">
+                <div className="h-[200px] w-full flex items-center justify-center bg-muted rounded-md">
                   <p className="text-muted-foreground">{localT('profile.achievements_placeholder')}</p>
                 </div>
               </CardContent>
@@ -356,7 +499,66 @@ export default function ProfilePage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
-  )
-}
 
+      {/* Диалог с детальной информацией о работе */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{localT('profile.artwork_details')}</DialogTitle>
+          </DialogHeader>
+          {selectedArtwork && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative aspect-square bg-muted rounded-md overflow-hidden">
+                <img 
+                  src={selectedArtwork.image_url} 
+                  alt={selectedArtwork.title || localT('profile.artwork')}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold">{selectedArtwork.title || localT('profile.artwork')}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {localT('profile.created_at')}: {formatDate(selectedArtwork.created_at)}
+                  </p>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h4 className="text-sm font-medium mb-1">{localT('profile.prompt')}</h4>
+                  <p className="text-sm border rounded-md p-3 bg-muted/30">
+                    {selectedArtwork.prompt || "No prompt information available"}
+                  </p>
+                </div>
+                
+                {selectedArtwork.model && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-1">{localT('profile.model')}</h4>
+                    <Badge variant="outline">{selectedArtwork.model}</Badge>
+                  </div>
+                )}
+                
+                <div className="flex gap-2 pt-4">
+                  <Button onClick={() => handleDownloadArtwork(selectedArtwork)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    {localT('profile.download')}
+                  </Button>
+                  <Button variant="outline" onClick={() => handleShareToCommunity(selectedArtwork)}>
+                    <Share2 className="mr-2 h-4 w-4" />
+                    {localT('profile.share_artwork')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              {localT('profile.close')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
