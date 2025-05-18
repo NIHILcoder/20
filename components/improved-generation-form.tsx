@@ -1175,29 +1175,34 @@ const handleDownload = async () => {
         }
     };
     
-        // Функция для публикации работы в Community
-    // Функция для публикации работы в Community
     const handleShareToCommunity = async () => {
         if (!generatedImage || !user?.id) {
-        showNotification('Для публикации необходимо создать изображение и авторизоваться', 'error');
-        return;
+          showNotification('Для публикации необходимо создать изображение и авторизоваться', 'error');
+          return;
         }
+        
+        setIsProcessing(true);
         
         try {
-        // Проверяем, сохранено ли уже изображение
-        let imagePath = generatedImage;
-        
-        // Если изображение еще не сохранено (например, base64), сначала сохраняем его
-        if (generatedImage.startsWith('data:image')) {
+          // Показываем уведомление о начале процесса
+          showNotification('Публикация изображения...', 'info');
+          
+          // Проверяем, сохранено ли уже изображение
+          let imagePath = generatedImage;
+          
+          // Если изображение еще не сохранено (например, base64), сначала сохраняем его
+          if (generatedImage.startsWith('data:image')) {
+            showNotification('Сохранение изображения перед публикацией...', 'info');
             const saveResult = await saveImageToServer(generatedImage, prompt, user.id);
             if (!saveResult.success) {
-            throw new Error('Не удалось сохранить изображение перед публикацией');
+              throw new Error('Не удалось сохранить изображение перед публикацией');
             }
             imagePath = saveResult.path || '';
-        }
-        
-        // Публикуем работу в Community через новую функцию в imageService
-        const publishResult = await imageService.publishToCommunity({
+            showNotification('Изображение успешно сохранено', 'success');
+          }
+          
+          // Публикуем работу в Community через новую функцию в imageService
+          const publishResult = await imageService.publishToCommunity({
             userId: user.id,
             imageUrl: imagePath,
             prompt: prompt,
@@ -1205,23 +1210,33 @@ const handleDownload = async () => {
             description: prompt,
             model: selectedModel,
             parameters: {
-            steps,
-            cfgScale,
-            seed,
-            sampler
+              steps,
+              cfgScale,
+              seed,
+              sampler,
+              ultraMode: ultraModeEnabled,
+              rawMode: rawModeEnabled,
+              hiresFixEnabled
             }
-        });
-        
-        if (!publishResult.success) {
+          });
+          
+          if (!publishResult.success) {
             throw new Error(publishResult.error || 'Ошибка при публикации работы');
-        }
-        
-        showNotification('Работа успешно опубликована в Community', 'success');
+          }
+          
+          showNotification('Работа успешно опубликована в Community', 'success');
         } catch (error) {
-        console.error('Ошибка при публикации работы:', error);
-        showNotification('Не удалось опубликовать работу', 'error');
+          console.error('Ошибка при публикации работы:', error);
+          showNotification(
+            error instanceof Error ? 
+            error.message : 
+            'Не удалось опубликовать работу', 
+            'error'
+          );
+        } finally {
+          setIsProcessing(false);
         }
-    };
+      };
   
   // Добавляем эффект для обработки drag & drop
     useEffect(() => {

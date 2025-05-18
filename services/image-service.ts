@@ -1,4 +1,3 @@
-// services/image-service.ts
 import axios from 'axios';
 
 interface SaveImageResponse {
@@ -56,7 +55,6 @@ export class ImageService {
     }
   }
 
-  // Новая функция для публикации изображения в сообщество
   async publishToCommunity(data: {
     userId: number;
     imageUrl: string;
@@ -67,7 +65,13 @@ export class ImageService {
     parameters?: any;
   }): Promise<PublishResponse> {
     try {
-      const response = await axios.post('@/api/artwork/publish', {
+      console.log('Отправка запроса на публикацию, данные:', {
+        userId: data.userId,
+        imageUrlPrefix: data.imageUrl.substring(0, 30) + '...',
+        title: data.title || data.prompt.substring(0, 50) + '...',
+      });
+      
+      const response = await axios.post('/api/artwork/publish', {
         userId: data.userId,
         imageUrl: data.imageUrl,
         prompt: data.prompt,
@@ -75,12 +79,37 @@ export class ImageService {
         description: data.description || data.prompt,
         model: data.model || 'flux_realistic',
         parameters: data.parameters || {}
+      }, {
+        withCredentials: true, // Важно для передачи cookies
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+      
+      console.log('Ответ API:', response.data);
       
       return response.data;
     } catch (error) {
       console.error('Ошибка при публикации изображения в сообщество:', error);
-      return { success: false, error: 'Не удалось опубликовать изображение в сообщество' };
+      
+      if (axios.isAxiosError(error)) {
+        console.error('Статус ошибки:', error.response?.status);
+        console.error('Детали ошибки:', error.response?.data);
+        
+        // Возвращаем более информативную ошибку
+        return { 
+          success: false, 
+          error: error.response?.data?.error || 
+                 `Ошибка при публикации (${error.response?.status || 'неизвестный статус'})` 
+        };
+      }
+      
+      return { 
+        success: false, 
+        error: error instanceof Error ? 
+              `Не удалось опубликовать изображение: ${error.message}` : 
+              'Не удалось опубликовать изображение в сообщество' 
+      };
     }
   }
 }
