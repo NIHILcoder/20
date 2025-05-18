@@ -12,6 +12,17 @@ export async function POST(request: NextRequest) {
     // Проверяем авторизацию пользователя
     const session = await getServerSession(authOptions);
     
+    // Подробное логирование для отладки
+    console.log('Данные сессии:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id || 'отсутствует',
+      headers: {
+        cookie: request.headers.get('cookie') || 'отсутствует',
+        csrf: request.headers.get('x-csrf-token') || 'отсутствует'
+      }
+    });
+    
     if (!session?.user) {
       console.log('Ошибка авторизации: сессия отсутствует');
       return NextResponse.json(

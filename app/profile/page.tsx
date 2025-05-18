@@ -181,11 +181,57 @@ export default function ProfilePage() {
   // Обработчик для публикации работы в сообществе
   const handleShareToCommunity = async (artwork: Artwork) => {
     try {
+      // Получаем CSRF-токен из cookie для NextAuth (если он используется)
+      const getCsrfToken = () => {
+        const cookies = document.cookie.split(';');
+        const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('next-auth.csrf-token='));
+        if (csrfCookie) {
+          const tokenValue = csrfCookie.split('=')[1];
+          // Если токен содержит %7C (закодированный символ |), нужно взять часть до него
+          if (tokenValue.includes('%7C')) {
+            return decodeURIComponent(tokenValue.split('%7C')[0]);
+          }
+          return decodeURIComponent(tokenValue);
+        }
+        return '';
+      };
+
+      // Проверяем наличие сессии NextAuth
+      const checkNextAuthSession = () => {
+        return document.cookie.split(';').some(cookie => 
+          cookie.trim().startsWith('next-auth.session-token=') || 
+          cookie.trim().startsWith('__Secure-next-auth.session-token=')
+        );
+      };
+
+      // Если нет сессии NextAuth, выбрасываем ошибку авторизации
+      if (!checkNextAuthSession()) {
+        throw new Error('Необходима авторизация. Пожалуйста, войдите в систему снова.');
+      }
+      
+      // Делаем простой запрос для проверки авторизации перед публикацией
+      const authCheckResponse = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'include', // Важно для передачи cookies
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!authCheckResponse.ok) {
+        if (authCheckResponse.status === 401) {
+          throw new Error('Необходима авторизация. Пожалуйста, войдите в систему снова.');
+        }
+        throw new Error('Ошибка при проверке авторизации');
+      }
+
       const response = await fetch('/api/artwork/publish', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': getCsrfToken() // Добавляем CSRF-токен для NextAuth
         },
+        credentials: 'include', // Важно для передачи cookies
         body: JSON.stringify({
           userId: user?.id,
           imageUrl: artwork.image_url,
@@ -198,12 +244,24 @@ export default function ProfilePage() {
       });
       
       if (!response.ok) {
-        throw new Error('Ошибка при публикации работы');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Ошибка при публикации работы');
       }
       
       alert(localT('profile.share_success'));
     } catch (error) {
       console.error('Ошибка при публикации работы:', error);
+      
+      // Если ошибка связана с авторизацией, предлагаем пользователю войти снова
+      if (error instanceof Error && (error.message.includes('авторизация') || error.message.includes('Необходима авторизация'))) {
+        alert('Необходима авторизация. Пожалуйста, войдите в систему снова.');
+        // Перенаправляем на страницу входа
+        setTimeout(() => {
+          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+        }, 1500);
+      } else {
+        alert(error instanceof Error ? error.message : 'Не удалось опубликовать работу');
+      }
     }
   };
 

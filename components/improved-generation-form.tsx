@@ -1184,6 +1184,28 @@ const handleDownload = async () => {
         setIsProcessing(true);
         
         try {
+          // Проверяем актуальность сессии пользователя перед публикацией
+          try {
+            // Делаем простой запрос для проверки авторизации
+            const authCheckResponse = await fetch('/api/auth/me', {
+              method: 'GET',
+              credentials: 'include', // Важно для передачи cookies
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (!authCheckResponse.ok) {
+              if (authCheckResponse.status === 401) {
+                throw new Error('Необходима авторизация. Пожалуйста, войдите в систему снова.');
+              }
+              throw new Error('Ошибка при проверке авторизации');
+            }
+          } catch (authError) {
+            console.error('Ошибка авторизации:', authError);
+            throw new Error(authError instanceof Error ? authError.message : 'Ошибка авторизации');
+          }
+          
           // Показываем уведомление о начале процесса
           showNotification('Публикация изображения...', 'info');
           
@@ -1227,12 +1249,25 @@ const handleDownload = async () => {
           showNotification('Работа успешно опубликована в Community', 'success');
         } catch (error) {
           console.error('Ошибка при публикации работы:', error);
-          showNotification(
-            error instanceof Error ? 
-            error.message : 
-            'Не удалось опубликовать работу', 
-            'error'
-          );
+          
+          // Если ошибка связана с авторизацией, предлагаем пользователю войти снова
+          if (error instanceof Error && (error.message.includes('авторизация') || error.message.includes('Необходима авторизация'))) {
+            showNotification(
+              'Необходима авторизация. Пожалуйста, войдите в систему снова.', 
+              'error'
+            );
+            // Перенаправляем на страницу входа
+            setTimeout(() => {
+              window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            }, 1500);
+          } else {
+            showNotification(
+              error instanceof Error ? 
+              error.message : 
+              'Не удалось опубликовать работу', 
+              'error'
+            );
+          }
         } finally {
           setIsProcessing(false);
         }
@@ -1870,29 +1905,6 @@ const handleDownload = async () => {
                                                     ))}
                                                 </SelectContent>
                                             </Select>
-                                        </div>
-                                    )}
-
-                                    {/* Batch count - отключено для BFL API, т.к. не поддерживается */}
-                                    {false && (
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                                <Label htmlFor="batch-count" className="text-sm">{getTranslation('form.batch')}</Label>
-                                                <span className="text-xs text-muted-foreground">{batchCount}</span>
-                                            </div>
-                                            <Slider
-                                                id="batch-count"
-                                                value={[batchCount]}
-                                                min={1}
-                                                max={6}
-                                                step={1}
-                                                className="py-1"
-                                                onValueChange={(value) => setBatchCount(value[0])}
-                                            />
-                                            <div className="flex justify-between text-xs text-muted-foreground">
-                                                <span>1</span>
-                                                <span>6</span>
-                                            </div>
                                         </div>
                                     )}
 

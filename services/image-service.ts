@@ -71,6 +71,34 @@ export class ImageService {
         title: data.title || data.prompt.substring(0, 50) + '...',
       });
       
+      // Получаем CSRF-токен из cookie для NextAuth (если он используется)
+      const getCsrfToken = () => {
+        const cookies = document.cookie.split(';');
+        const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('next-auth.csrf-token='));
+        if (csrfCookie) {
+          const tokenValue = csrfCookie.split('=')[1];
+          // Если токен содержит %7C (закодированный символ |), нужно взять часть до него
+          if (tokenValue.includes('%7C')) {
+            return decodeURIComponent(tokenValue.split('%7C')[0]);
+          }
+          return decodeURIComponent(tokenValue);
+        }
+        return '';
+      };
+
+      // Проверяем наличие сессии NextAuth
+      const checkNextAuthSession = () => {
+        return document.cookie.split(';').some(cookie => 
+          cookie.trim().startsWith('next-auth.session-token=') || 
+          cookie.trim().startsWith('__Secure-next-auth.session-token=')
+        );
+      };
+
+      // Если нет сессии NextAuth, выбрасываем ошибку авторизации
+      if (!checkNextAuthSession()) {
+        throw new Error('Необходима авторизация. Пожалуйста, войдите в систему снова.');
+      }
+
       const response = await axios.post('/api/artwork/publish', {
         userId: data.userId,
         imageUrl: data.imageUrl,
@@ -82,7 +110,8 @@ export class ImageService {
       }, {
         withCredentials: true, // Важно для передачи cookies
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCsrfToken() // Добавляем CSRF-токен для NextAuth
         }
       });
       
@@ -95,6 +124,16 @@ export class ImageService {
       if (axios.isAxiosError(error)) {
         console.error('Статус ошибки:', error.response?.status);
         console.error('Детали ошибки:', error.response?.data);
+        
+        // Проверяем, является ли ошибка связанной с авторизацией
+        if (error.response?.status === 401) {
+          console.error('Ошибка авторизации при публикации. Возможно, сессия истекла или пользователь не авторизован.');
+          // Можно добавить код для перенаправления на страницу входа или обновления сессии
+          return { 
+            success: false, 
+            error: 'Необходима авторизация. Пожалуйста, войдите в систему снова.'
+          };
+        }
         
         // Возвращаем более информативную ошибку
         return { 
