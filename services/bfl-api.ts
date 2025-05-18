@@ -2,6 +2,7 @@
 import axios from 'axios';
 
 export class BflApiService {
+  [x: string]: any;
   async generateWithFluxPro11(params: any) {
     try {
       const response = await axios.post('/api/bfl-proxy', {

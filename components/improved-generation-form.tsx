@@ -3,34 +3,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useAuth } from '@/components/auth-context';
 import {
-    Sparkles,
-    Save,
-    Share2,
-    Download,
-    Upload,
-    Copy,
-    RefreshCw,
-    Wand2,
-    Plus,
-    RotateCw,
-    ZoomIn,
-    ZoomOut,
-    Image,
-    Lightbulb,
-    X,
-    Check,
-    Info,
-    HelpCircle,
-    Palette,
-    FileCode,
-    Eye,
-    Grid,
-    CheckCircle2
+    Sparkles, Save, Share2, Download, Upload, Copy, RefreshCw, Wand2,
+    Plus, RotateCw, ZoomIn, ZoomOut, Image, Lightbulb, X, Check,
+    Bolt, Brush, Camera, Info, HelpCircle, Palette, FileCode, Eye,
+    Grid, CheckCircle2, Maximize, Minimize, RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -44,6 +25,9 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-context";
 import { imageService } from "../services/image-service";
 import { bflApiService } from "@/services/bfl-api";
+import { RadioGroup } from "@radix-ui/react-dropdown-menu";
+import { RadioGroupItem } from "@radix-ui/react-radio-group";
+import { SelectLabel } from "@radix-ui/react-select";
 
 // Обновленная функция сохранения изображения на сервере
 const saveImageToServer = async (
@@ -178,6 +162,12 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [notification, setNotification] = useState<Notification>({message: '', visible: false});
+    const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+    const [imagePosition, setImagePosition] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
+    const [isDraggingImage, setIsDraggingImage] = useState<boolean>(false);
+    const [imageLoading, setImageLoading] = useState<boolean>(true);
+    const [imageError, setImageError] = useState<boolean>(false);
+    const [compareMode, setCompareMode] = useState<boolean>(false);
     const [lastCopiedPrompt, setLastCopiedPrompt] = useState<string>("");
     const [processingStage, setProcessingStage] = useState<string>("");
     const [promptFocused, setPromptFocused] = useState<boolean>(false);
@@ -455,6 +445,14 @@ export const ImprovedGenerationForm: React.FC = () => {
         'form.polling': {
             en: 'Waiting for result...',
             ru: 'Ожидание результата...'
+        },
+        'form.to_community': {
+            en: 'To Community',
+            ru: 'В сообщество'
+        },
+        'form.publishing': {
+            en: 'Publishing...',
+            ru: 'Публикация...'
         }
     };
 
@@ -1024,83 +1022,86 @@ export const ImprovedGenerationForm: React.FC = () => {
         }
     };
 
-// Обработчик для скачивания изображения
-const handleDownload = async () => {
-    if (!generatedImage) return;
-    
-    try {
-        console.log('Скачивание изображения: начало', generatedImage.substring(0, 100));
+    // Обработчик для скачивания изображения
+    const handleDownload = async () => {
+        if (!generatedImage) return;
         
-        // Проверяем формат URL
-        if (generatedImage.startsWith('data:')) {
-            // Если это base64, скачиваем напрямую через a.href
-            const a = document.createElement('a');
-            a.href = generatedImage;
-            a.download = `visiomera-generation-${new Date().getTime()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(a.href);
-            document.body.removeChild(a);
+        if (isFullscreen) {
+            setIsFullscreen(false);
+        }
+        try {
+            console.log('Скачивание изображения: начало', generatedImage.substring(0, 100));
             
-            showNotification('Изображение успешно скачано');
-        } else if (generatedImage.startsWith('http')) {
-            // Проверяем CORS и доступность URL
-            try {
-                // Проверяем URL через fetch
-                const testResponse = await fetch(generatedImage, { method: 'HEAD' });
-                if (!testResponse.ok) {
-                    throw new Error(`Ответ сервера: ${testResponse.status}`);
-                }
-                
-                // URL доступен, скачиваем
-                const response = await fetch(generatedImage);
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                
+            // Проверяем формат URL
+            if (generatedImage.startsWith('data:')) {
+                // Если это base64, скачиваем напрямую через a.href
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = generatedImage;
                 a.download = `visiomera-generation-${new Date().getTime()}.png`;
                 document.body.appendChild(a);
                 a.click();
-                window.URL.revokeObjectURL(url);
+                window.URL.revokeObjectURL(a.href);
                 document.body.removeChild(a);
                 
                 showNotification('Изображение успешно скачано');
-            } catch (error) {
-                console.error('CORS или другая ошибка при скачивании:', error);
-                
-                // Пробуем скачать через сервер
-                showNotification('Пробуем скачать через прокси...', 'info');
-                
-                // Создаем прокси-маршрут для скачивания
+            } else if (generatedImage.startsWith('http')) {
+                // Проверяем CORS и доступность URL
                 try {
-                    // Вместо прямого скачивания, создаем фрейм или новую вкладку с URL
-                    window.open(generatedImage, '_blank');
-                    showNotification('Изображение открыто в новой вкладке');
-                } catch (e) {
-                    console.error('Ошибка при открытии изображения:', e);
-                    showNotification('Не удалось скачать изображение. Пожалуйста, сохраните его вручную.', 'error');
+                    // Проверяем URL через fetch
+                    const testResponse = await fetch(generatedImage, { method: 'HEAD' });
+                    if (!testResponse.ok) {
+                        throw new Error(`Ответ сервера: ${testResponse.status}`);
+                    }
+                    
+                    // URL доступен, скачиваем
+                    const response = await fetch(generatedImage);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `visiomera-generation-${new Date().getTime()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showNotification('Изображение успешно скачано');
+                } catch (error) {
+                    console.error('CORS или другая ошибка при скачивании:', error);
+                    
+                    // Пробуем скачать через сервер
+                    showNotification('Пробуем скачать через прокси...', 'info');
+                    
+                    // Создаем прокси-маршрут для скачивания
+                    try {
+                        // Вместо прямого скачивания, создаем фрейм или новую вкладку с URL
+                        window.open(generatedImage, '_blank');
+                        showNotification('Изображение открыто в новой вкладке');
+                    } catch (e) {
+                        console.error('Ошибка при открытии изображения:', e);
+                        showNotification('Не удалось скачать изображение. Пожалуйста, сохраните его вручную.', 'error');
+                    }
                 }
+            } else if (generatedImage.startsWith('/')) {
+                // Это локальный путь
+                const a = document.createElement('a');
+                a.href = generatedImage;
+                a.download = `visiomera-generation-${new Date().getTime()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showNotification('Изображение успешно скачано');
+            } else {
+                console.error('Неизвестный формат URL изображения:', generatedImage);
+                showNotification('Неизвестный формат URL изображения', 'error');
             }
-        } else if (generatedImage.startsWith('/')) {
-            // Это локальный путь
-            const a = document.createElement('a');
-            a.href = generatedImage;
-            a.download = `visiomera-generation-${new Date().getTime()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            
-            showNotification('Изображение успешно скачано');
-        } else {
-            console.error('Неизвестный формат URL изображения:', generatedImage);
-            showNotification('Неизвестный формат URL изображения', 'error');
+        } catch (error: unknown) {
+            console.error('Ошибка при скачивании изображения:', error);
+            showNotification('Ошибка при скачивании изображения', 'error');
         }
-    } catch (error: unknown) {
-        console.error('Ошибка при скачивании изображения:', error);
-        showNotification('Ошибка при скачивании изображения', 'error');
-    }
-};
+    };
 
     // Обработчик для создания вариаций изображения
     const handleVariations = () => {
@@ -1109,6 +1110,8 @@ const handleDownload = async () => {
         // Устанавливаем исходное изображение для режима Image-to-Image
         setSourceImage(generatedImage);
         
+        setCompareMode(false);
+
         // Переходим на вкладку Advanced, если это необходимо
         setActiveTab('advanced');
         
@@ -1163,6 +1166,45 @@ const handleDownload = async () => {
         }
     };
     
+    const toggleFullscreen = () => {
+        setIsFullscreen(!isFullscreen);
+        // Сбрасываем позицию при переключении режима
+        setImagePosition({ x: 0, y: 0 });
+    };
+
+    const resetZoomAndPosition = () => {
+        setZoomLevel(100);
+        setImagePosition({ x: 0, y: 0 });
+    };
+
+    const handleImageMouseDown = (e: React.MouseEvent) => {
+        if (zoomLevel > 100) {
+            setIsDraggingImage(true);
+        }
+    };
+
+    const handleImageMouseMove = (e: React.MouseEvent) => {
+        if (isDraggingImage && zoomLevel > 100) {
+            setImagePosition({
+                x: imagePosition.x + e.movementX,
+                y: imagePosition.y + e.movementY
+            });
+        }
+    };
+
+    const handleImageMouseUp = () => {
+        setIsDraggingImage(false);
+    };
+
+    const handleImageLoad = () => {
+        setImageLoading(false);
+    };
+
+    const handleImageError = () => {
+        setImageLoading(false);
+        setImageError(true);
+    };
+
     const handleShareToCommunity = async () => {
         if (!generatedImage || !user?.id) {
           showNotification('Для публикации необходимо создать изображение и авторизоваться', 'error');
@@ -1281,7 +1323,7 @@ const handleDownload = async () => {
         }
       };
   
-  // Добавляем эффект для обработки drag & drop
+    // Добавляем эффект для обработки drag & drop
     useEffect(() => {
         const dropZone = dropZoneRef.current;
         if (!dropZone) return;
@@ -1326,7 +1368,41 @@ const handleDownload = async () => {
         };
     }, []);
 
-    
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (generatedImage) {
+                // Escape закрывает полноэкранный режим
+                if (e.key === 'Escape' && isFullscreen) {
+                    toggleFullscreen();
+                }
+                
+                // + и - изменяют масштаб
+                if (e.key === '+' || e.key === '=') {
+                    setZoomLevel(prev => Math.min(300, prev + 10));
+                }
+                if (e.key === '-' || e.key === '_') {
+                    setZoomLevel(prev => Math.max(50, prev - 10));
+                }
+                
+                // 0 сбрасывает масштаб и позицию
+                if (e.key === '0') {
+                    resetZoomAndPosition();
+                }
+                
+                // F или f переключает полноэкранный режим
+                if (e.key === 'f' || e.key === 'F') {
+                    toggleFullscreen();
+                }
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        
+        return () => {
+            window.addEventListener('keydown', handleKeyDown);
+        };
+    }, [generatedImage, isFullscreen, toggleFullscreen, resetZoomAndPosition]);
+
     const renderComplexityVisualization = () => {
         const complexity = calculateComplexity();
         return (
@@ -1392,6 +1468,8 @@ const handleDownload = async () => {
         );
     };
 
+    // Вычисляем основной размер сетки для оптимального отображения
+    // Изменено с grid-cols-12 на flex для лучшего баланса
     return (
         <div className="w-full max-w-full">
             {/* Notification */}
@@ -1420,14 +1498,14 @@ const handleDownload = async () => {
                 )}
             </AnimatePresence>
 
-            {/* Main content */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full">
-                {/* Settings panel */}
+            {/* Main content - Измененная структура для улучшения отображения */}
+            <div className="flex flex-col lg:flex-row gap-4 w-full">
+                {/* Settings panel - 40% ширины на больших экранах */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
-                    className="lg:col-span-5"
+                    className="lg:w-[40%] w-full"
                 >
                     <Card className="shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300">
                         <CardHeader className="pb-2">
@@ -1655,106 +1733,153 @@ const handleDownload = async () => {
                                         />
                                     </div>
 
-                                    {/* Style presets */}
+                                    {/* Улучшенный выбор модели с подробной информацией */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-sm font-medium">{getTranslation('form.style_presets')}</Label>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-6 text-xs"
-                                                onClick={() => setSelectedStyle(null)}
-                                            >
-                                                {getTranslation('form.reset')}
-                                            </Button>
+                                            <Label className="text-sm font-medium">{getTranslation('form.model_selection')}</Label>
+                                            <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5">
+                                                    <HelpCircle className="h-3.5 w-3.5" />
+                                                </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="w-80">
+                                                <p className="text-xs">Выберите модель в зависимости от желаемого результата. 
+                                                Разные модели оптимизированы для различных типов изображений.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            </TooltipProvider>
                                         </div>
-                                        <ScrollArea className="h-[100px] w-full rounded-md border">
-                                            <div className="flex flex-wrap gap-2 p-2">
-                                                {stylePresets.map((style) => (
-                                                    <div
-                                                        key={style.id}
-                                                        onClick={() => setSelectedStyle(style.id)}
-                                                        className={cn(
-                                                            "flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1.5 transition-all hover:border-primary hover:bg-secondary/50",
-                                                            selectedStyle === style.id && "border-primary bg-primary/5"
-                                                        )}
-                                                    >
-                                                        <img
-                                                            src={style.image}
-                                                            alt={style.name}
-                                                            className="h-10 w-10 rounded-md object-cover"
-                                                        />
-                                                        <span className="text-[10px]">{style.name}</span>
+                                        
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                            {
+                                                id: "flux",
+                                                name: "FLUX Standard",
+                                                description: "Стандартный режим",
+                                                longDescription: "Универсальная модель, подходит для большинства типов изображений. Быстрая генерация со сбалансированным качеством и временем обработки.",
+                                                icon: <Bolt className="h-8 w-8 text-blue-500 mb-1" />
+                                            },
+                                            {
+                                                id: "flux_ultra",
+                                                name: "FLUX Ultra",
+                                                description: "Высокое качество",
+                                                longDescription: "Улучшенное качество и детализация. Идеально подходит для сложных изображений с мелкими деталями. Требует больше времени на обработку.",
+                                                icon: <Sparkles className="h-8 w-8 text-purple-500 mb-1" />
+                                            },
+                                            {
+                                                id: "flux_raw",
+                                                name: "FLUX Raw",
+                                                description: "Фотореализм",
+                                                longDescription: "Специализированная модель для создания фотореалистичных изображений с естественным освещением и текстурами. Отлично подходит для портретов и природных сцен.",
+                                                icon: <Camera className="h-8 w-8 text-green-500 mb-1" />
+                                            },
+                                            {
+                                                id: "flux_fill",
+                                                name: "FLUX Fill",
+                                                description: "Заполнение",
+                                                longDescription: "Модель для заполнения отсутствующих частей изображения или дорисовки по контексту. Идеально для удаления объектов или дополнения изображения новыми элементами.",
+                                                icon: <Brush className="h-8 w-8 text-amber-500 mb-1" />
+                                            }
+                                            ].map((model) => (
+                                            <div
+                                                key={model.id}
+                                                className={cn(
+                                                "flex flex-col items-center rounded-md border p-3 cursor-pointer transition-all relative group",
+                                                selectedModel === model.id 
+                                                    ? "border-primary bg-primary/5" 
+                                                    : "hover:border-primary/30 hover:bg-muted/30"
+                                                )}
+                                                onClick={() => {
+                                                setSelectedModel(model.id);
+                                                // Установка режимов в зависимости от модели
+                                                if (model.id === 'flux_ultra') {
+                                                    setUltraModeEnabled(true);
+                                                    setRawModeEnabled(false);
+                                                    showNotification('Включен режим Ultra для высокого качества', 'info');
+                                                } else if (model.id === 'flux_raw') {
+                                                    setUltraModeEnabled(true);
+                                                    setRawModeEnabled(true);
+                                                    showNotification('Включен фотореалистичный режим', 'info');
+                                                } else if (model.id === 'flux_fill') {
+                                                    // Для Fill модели можно автоматически переключиться в режим img2img
+                                                    if (!sourceImage) {
+                                                    showNotification('Загрузите изображение для режима заполнения', 'info');
+                                                    setActiveTab('advanced');
+                                                    }
+                                                } else {
+                                                    setUltraModeEnabled(false);
+                                                    setRawModeEnabled(false);
+                                                }
+                                                }}
+                                            >
+                                                {model.icon}
+                                                <div className="text-sm font-medium mb-1">{model.name}</div>
+                                                <div className="text-xs text-muted-foreground text-center">
+                                                {model.description}
+                                                </div>
+                                                
+                                                {/* Индикатор выбранной модели */}
+                                                {selectedModel === model.id && (
+                                                <div className="absolute -top-1 -right-1 bg-primary text-white rounded-full p-0.5">
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                </div>
+                                                )}
+                                                
+                                                {/* Всплывающая карточка с подробным описанием */}
+                                                <div className="absolute z-50 left-0 right-0 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                                <Card className="text-xs shadow-lg">
+                                                    <CardContent className="p-3">
+                                                    <div className="font-medium mb-1">{model.name}</div>
+                                                    <p>{model.longDescription}</p>
+                                                    <div className="text-primary text-[10px] mt-1.5">
+                                                        {model.id === 'flux' ? '✓ Оптимальный баланс скорости и качества' : 
+                                                        model.id === 'flux_ultra' ? '✓ Максимальное качество деталей' : 
+                                                        model.id === 'flux_raw' ? '✓ Идеально для фотореалистичных изображений' : 
+                                                        '✓ Специально для заполнения изображений'}
                                                     </div>
-                                                ))}
+                                                    </CardContent>
+                                                </Card>
+                                                </div>
                                             </div>
-                                        </ScrollArea>
-                                    </div>
-
-                                    {/* Model selection */}
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">{getTranslation('form.model_selection')}</Label>
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                            {availableModels.map((model) => (
-                                                <motion.div
-                                                    key={model.id}
-                                                    whileHover={{ scale: 1.02 }}
-                                                    whileTap={{ scale: 0.98 }}
-                                                    className={cn(
-                                                        "flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1.5 transition-all hover:border-primary hover:bg-secondary/50",
-                                                        selectedModel === model.id && "border-primary bg-primary/5"
-                                                    )}
-                                                    onClick={() => {
-                                                        setSelectedModel(model.id);
-                                                        // Если выбрана модель Ultra, включаем режим Ultra
-                                                        if (model.id === 'flux_ultra') {
-                                                            setUltraModeEnabled(true);
-                                                            setRawModeEnabled(false);
-                                                        } else if (model.id === 'flux_raw') {
-                                                            setUltraModeEnabled(true);
-                                                            setRawModeEnabled(true);
-                                                        } else {
-                                                            setUltraModeEnabled(false);
-                                                            setRawModeEnabled(false);
-                                                        }
-                                                    }}
-                                                >
-                                                    <img
-                                                        src={model.image}
-                                                        alt={model.name}
-                                                        className="h-10 w-10 rounded-md object-cover"
-                                                    />
-                                                    <span className="text-center text-xs">{model.name}</span>
-                                                </motion.div>
                                             ))}
                                         </div>
+                                        
+                                        {/* Добавим небольшую подсказку */}
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Наведите на модель для получения подробной информации
+                                        </p>
                                     </div>
 
                                     {/* Size options */}
                                     <div className="space-y-2">
                                         <Label className="text-sm font-medium">{getTranslation('form.size')}</Label>
-                                        <div className="grid grid-cols-4 gap-1">
-                                            {sizeOptions.map((size) => (
-                                                <div
-                                                    key={size.id}
-                                                    onClick={() => {
-                                                        setSelectedSize(size.id);
-                                                        // Если выбран большой размер, рекомендуем режим Ultra
-                                                        if (size.id === "1536") {
-                                                            setUltraModeEnabled(true);
-                                                            showNotification('Режим Ultra автоматически включен для высокого разрешения', 'info');
-                                                        }
-                                                    }}
-                                                    className={cn(
-                                                        "flex cursor-pointer flex-col items-center rounded-md border p-1.5 transition-all hover:border-primary hover:bg-secondary/50",
-                                                        selectedSize === size.id && "border-primary bg-primary/5"
-                                                    )}
-                                                >
-                                                    <span className="text-xs font-medium">{size.name}</span>
-                                                    <span className="text-[10px] text-muted-foreground">{size.description}</span>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <Select value={selectedSize} onValueChange={setSelectedSize}>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Выберите размер" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectGroup>
+                                                    <SelectLabel>Размер изображения</SelectLabel>
+                                                    {sizeOptions.map((size) => (
+                                                        <SelectItem 
+                                                            key={size.id} 
+                                                            value={size.id}
+                                                            onClick={() => {
+                                                                // Если выбран большой размер, включаем Ultra режим
+                                                                if (size.id === "1536") {
+                                                                    setUltraModeEnabled(true);
+                                                                    showNotification('Режим Ultra автоматически включен для высокого разрешения', 'info');
+                                                                }
+                                                            }}
+                                                        >
+                                                            {size.name} - {size.description}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectGroup>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </CardContent>
                             </TabsContent>
@@ -2145,181 +2270,261 @@ const handleDownload = async () => {
                                         transition={{ duration: 0.4 }}
                                     />
                                 )}
-                                </Button>
+                            </Button>
                         </CardFooter>
                     </Card>
                 </motion.div>
 
-                {/* Preview panel */}
+                {/* Preview panel - увеличенная панель предпросмотра (теперь занимает 60% ширины) */}
                 <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className="lg:col-span-7"
-                >
-                    <Card className="flex flex-col shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300">
-                        <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-                            <CardTitle className="text-base">{getTranslation('form.preview')}</CardTitle>
-                            {generatedImage && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex items-center gap-1.5"
-                                >
-                                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
-                                        <ZoomOut className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <span className="text-xs">{zoomLevel}%</span>
-                                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
-                                        <ZoomIn className="h-3.5 w-3.5" />
-                                    </Button>
-                                </motion.div>
-                            )}
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div
-                                ref={generationContainerRef}
-                                className={cn(
-                                    "generation-preview relative w-full bg-muted/10",
-                                    aspectRatio === "1:1" ? "aspect-square" :
-                                        aspectRatio === "4:3" ? "aspect-[4/3]" :
-                                            aspectRatio === "16:9" ? "aspect-[16/9]" :
-                                                aspectRatio === "9:16" ? "aspect-[9/16]" :
-                                                    aspectRatio === "2:3" ? "aspect-[2/3]" :
-                                                        "aspect-[3/2]",
-                                    "border-b overflow-hidden"
-                                )}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.3 }}
+                className={cn(
+                    "lg:w-[60%] w-full",
+                    isFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""
+                )}
+            >
+                <Card className={cn(
+                    "flex flex-col shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300 h-full",
+                    isFullscreen ? "h-full rounded-none border-0" : ""
+                )}>
+                    <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+                        <CardTitle className="text-base">{getTranslation('form.preview')}</CardTitle>
+                        {generatedImage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex items-center gap-1.5"
                             >
-                                <AnimatePresence mode="wait">
-                                    {generating ? (
+                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
+                                    <ZoomOut className="h-3.5 w-3.5" />
+                                </Button>
+                                <span className="text-xs">{zoomLevel}%</span>
+                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
+                                    <ZoomIn className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={resetZoomAndPosition}>
+                                    <RotateCw className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
+                                    {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+                                </Button>
+                            </motion.div>
+                        )}
+                    </CardHeader>
+                    <CardContent className="p-0 flex-grow relative">
+                        {/* Улучшенный контейнер для изображения */}
+                        <div
+                            ref={generationContainerRef}
+                            className={cn(
+                                "generation-preview relative w-full h-full bg-muted/10",
+                                aspectRatio === "1:1" ? "aspect-square" :
+                                    aspectRatio === "4:3" ? "aspect-[4/3]" :
+                                        aspectRatio === "16:9" ? "aspect-[16/9]" :
+                                            aspectRatio === "9:16" ? "aspect-[9/16]" :
+                                                aspectRatio === "2:3" ? "aspect-[2/3]" :
+                                                    "aspect-[3/2]",
+                                "border-b overflow-hidden",
+                                "min-h-[500px] lg:min-h-[600px]", // Увеличиваем минимальную высоту
+                                isFullscreen ? "min-h-[calc(100vh-120px)]" : ""
+                            )}
+                        >
+                            <AnimatePresence mode="wait">
+                                {generating ? (
+                                    <motion.div
+                                        key="generating"
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        variants={fadeInOut}
+                                        className="flex h-full w-full flex-col items-center justify-center"
+                                    >
                                         <motion.div
-                                            key="generating"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={fadeInOut}
-                                            className="flex h-full w-full flex-col items-center justify-center"
+                                            initial={{ rotate: 0 }}
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                            className="mb-6"
                                         >
-                                            <motion.div
-                                                initial={{ rotate: 0 }}
-                                                animate={{ rotate: 360 }}
-                                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                                className="mb-6"
-                                            >
-                                                <div className="relative">
-                                                    <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
-                                                    <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
-                                                    <Sparkles className="h-12 w-12 text-primary" />
+                                            <div className="relative">
+                                                <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
+                                                <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
+                                                <Sparkles className="h-12 w-12 text-primary" />
+                                            </div>
+                                        </motion.div>
+                                        <div className="w-2/3 max-w-md mb-4">
+                                            <Progress value={progress} className="h-2" />
+                                            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                                <span>0%</span>
+                                                <span>{Math.round(progress)}%</span>
+                                                <span>100%</span>
+                                            </div>
+                                        </div>
+                                        <motion.p
+                                            className="mt-1 text-sm text-primary font-medium"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
+                                        </motion.p>
+                                        <motion.div
+                                            key={processingStage}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            transition={{ duration: 0.3 }}
+                                            className="mt-1 text-xs text-muted-foreground"
+                                        >
+                                            {processingStage}
+                                        </motion.div>
+                                    </motion.div>
+                                ) : generatedImage ? (
+                                    <motion.div
+                                        key="result"
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        variants={scale}
+                                        className="relative h-full w-full overflow-hidden flex items-center justify-center"
+                                    >
+                                        {compareMode && sourceImage ? (
+                                            <div className="relative h-full w-full">
+                                                <div className="absolute inset-0 flex">
+                                                    <div className="w-1/2 h-full overflow-hidden border-r border-primary">
+                                                        <img src={sourceImage} alt="Source" className="h-full w-full object-cover" />
+                                                    </div>
+                                                    <div className="w-1/2 h-full overflow-hidden">
+                                                        <img src={generatedImage} alt="Generated" className="h-full w-full object-cover" />
+                                                    </div>
                                                 </div>
-                                            </motion.div>
-                                            <div className="w-2/3 max-w-md mb-4">
-                                                <Progress value={progress} className="h-2" />
-                                                <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                                                    <span>0%</span>
-                                                    <span>{Math.round(progress)}%</span>
-                                                    <span>100%</span>
+                                                <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm p-1.5 rounded-md text-xs">
+                                                    Оригинал / Сгенерированное
                                                 </div>
                                             </div>
-                                            <motion.p
-                                                className="mt-1 text-sm text-primary font-medium"
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                transition={{ duration: 0.3 }}
-                                            >
-                                                {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
-                                            </motion.p>
-                                            <motion.div
-                                                key={processingStage}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                transition={{ duration: 0.3 }}
-                                                className="mt-1 text-xs text-muted-foreground"
-                                            >
-                                                {processingStage}
-                                            </motion.div>
-                                        </motion.div>
-                                    ) : generatedImage ? (
-                                        <motion.div
-                                            key="result"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={scale}
-                                            className="relative h-full w-full overflow-hidden flex items-center justify-center"
-                                        >
+                                        ) : (
                                             <motion.div
                                                 initial={{ scale: 0.9, opacity: 0 }}
-                                                animate={{ scale: zoomLevel / 100, opacity: 1 }}
+                                                animate={{ 
+                                                    scale: zoomLevel / 100, 
+                                                    opacity: 1,
+                                                    x: imagePosition.x,
+                                                    y: imagePosition.y 
+                                                }}
                                                 transition={{ duration: 0.3 }}
                                                 className="h-full w-full"
+                                                onMouseDown={handleImageMouseDown}
+                                                onMouseMove={handleImageMouseMove}
+                                                onMouseUp={handleImageMouseUp}
+                                                onMouseLeave={handleImageMouseUp}
                                             >
-                                                <img
-                                                    src={generatedImage}
-                                                    alt="Generated"
-                                                    className="h-full w-full object-contain"
-                                                />
+                                                {imageLoading && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-muted/5">
+                                                        <RotateCw className="h-8 w-8 animate-spin text-primary/60" />
+                                                    </div>
+                                                )}
+                                                {imageError ? (
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/5">
+                                                        <X className="h-8 w-8 text-red-500 mb-2" />
+                                                        <p className="text-sm text-muted-foreground">Ошибка загрузки изображения</p>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="mt-2"
+                                                            onClick={() => {
+                                                                setImageError(false);
+                                                                setImageLoading(true);
+                                                                // Перезагрузка изображения
+                                                                const imgSrc = generatedImage;
+                                                                setGeneratedImage(null);
+                                                                setTimeout(() => setGeneratedImage(imgSrc), 100);
+                                                            }}
+                                                        >
+                                                            Попробовать снова
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <img
+                                                        src={generatedImage}
+                                                        alt="Generated"
+                                                        className="h-full w-full object-contain"
+                                                        draggable={false}
+                                                        onLoad={handleImageLoad}
+                                                        onError={handleImageError}
+                                                        style={{ opacity: imageLoading ? 0 : 1 }}
+                                                    />
+                                                )}
                                             </motion.div>
-                                        </motion.div>
-                                    ) : (
+                                        )}
+                                        
+                                        {/* Панель инструментов, если масштаб больше 100% */}
+                                        {zoomLevel > 100 && !compareMode && (
+                                            <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-lg shadow-md z-10">
+                                                <Button variant="ghost" size="sm" onClick={resetZoomAndPosition} className="text-xs">
+                                                    Центрировать
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="empty"
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        variants={fadeInOut}
+                                        className="flex h-full w-full flex-col items-center justify-center bg-muted/5 p-4 text-center"
+                                    >
                                         <motion.div
-                                            key="empty"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={fadeInOut}
-                                            className="flex h-full w-full flex-col items-center justify-center bg-muted/5 p-4 text-center"
+                                            className="rounded-full bg-muted/80 p-3"
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
                                         >
-                                            <motion.div
-                                                className="rounded-full bg-muted/80 p-3"
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                            >
-                                                <Sparkles className="h-6 w-6 text-muted-foreground" />
-                                            </motion.div>
-                                            <motion.p
-                                                className="mt-3 text-sm text-muted-foreground"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: 0.1, duration: 0.3 }}
-                                            >
-                                                {getTranslation('form.image_will_appear')}
-                                            </motion.p>
-                                            <motion.p
-                                                className="mt-1 text-xs text-muted-foreground"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: 0.2, duration: 0.3 }}
-                                            >
-                                                {getTranslation('form.start_with_prompt')}
-                                            </motion.p>
+                                            <Sparkles className="h-6 w-6 text-muted-foreground" />
                                         </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        </CardContent>
+                                        <motion.p
+                                            className="mt-3 text-sm text-muted-foreground"
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.1, duration: 0.3 }}
+                                        >
+                                            {getTranslation('form.image_will_appear')}
+                                        </motion.p>
+                                        <motion.p
+                                            className="mt-1 text-xs text-muted-foreground"
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.2, duration: 0.3 }}
+                                        >
+                                            {getTranslation('form.start_with_prompt')}
+                                        </motion.p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </CardContent>
 
-                        {/* Actions for generated image */}
-                        <AnimatePresence>
-                            {generatedImage && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 20 }}
-                                    transition={{ duration: 0.3 }}
-                                >
-                                    <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
-                                        <div className="flex gap-1.5">
-                                            <Button 
+                    {/* Actions for generated image */}
+                    <AnimatePresence>
+                        {generatedImage && !isFullscreen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
+                                    <div className="flex gap-1.5">
+                                        <Button 
                                             variant="outline" 
                                             size="sm" 
                                             className="h-8 hover:bg-primary/5 transition-colors duration-200"
                                             onClick={() => {
-                                                // Здесь можно реализовать логику сохранения в галерею пользователя
+                                                // Логика сохранения
                                                 showNotification('Изображение сохранено в вашу галерею');
                                             }}
-                                            >
+                                        >
                                             <motion.div
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
@@ -2328,13 +2533,13 @@ const handleDownload = async () => {
                                                 <Save className="mr-1.5 h-3.5 w-3.5" />
                                                 {getTranslation('form.save')}
                                             </motion.div>
-                                            </Button>
-                                            <Button 
+                                        </Button>
+                                        <Button 
                                             variant="outline" 
                                             size="sm" 
                                             className="h-8 hover:bg-primary/5 transition-colors duration-200"
                                             onClick={handleDownload}
-                                            >
+                                        >
                                             <motion.div
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
@@ -2343,15 +2548,34 @@ const handleDownload = async () => {
                                                 <Download className="mr-1.5 h-3.5 w-3.5" />
                                                 {getTranslation('form.download')}
                                             </motion.div>
-                                            </Button>
-                                        </div>
-                                        <div className="flex gap-1.5">
+                                        </Button>
+                                        
+                                        {/* Кнопка сравнения, если есть исходное изображение */}
+                                        {sourceImage && (
                                             <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={() => setCompareMode(!compareMode)}
+                                            >
+                                                <motion.div
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <FileCode className="mr-1.5 h-3.5 w-3.5" />
+                                                    {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
+                                                </motion.div>
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                        <Button 
                                             variant="outline" 
                                             size="sm" 
                                             className="h-8 hover:bg-primary/5 transition-colors duration-200"
                                             onClick={handleVariations}
-                                            >
+                                        >
                                             <motion.div
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
@@ -2360,13 +2584,13 @@ const handleDownload = async () => {
                                                 <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                                                 {getTranslation('form.variations')}
                                             </motion.div>
-                                            </Button>
-                                            <Button 
+                                        </Button>
+                                        <Button 
                                             variant="outline" 
                                             size="sm" 
                                             className="h-8 hover:bg-primary/5 transition-colors duration-200"
                                             onClick={handleShare}
-                                            >
+                                        >
                                             <motion.div
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
@@ -2375,23 +2599,23 @@ const handleDownload = async () => {
                                                 <Share2 className="mr-1.5 h-3.5 w-3.5" />
                                                 {getTranslation('form.share')}
                                             </motion.div>
-                                            </Button>
-                                            
-                                            {/* Новая кнопка для публикации в Community */}
-                                            <Button 
+                                        </Button>
+                                        
+                                        {/* Кнопка для публикации в Community */}
+                                        <Button 
                                             variant="default" 
                                             size="sm" 
                                             className="h-8 relative overflow-hidden"
                                             onClick={handleShareToCommunity}
                                             disabled={isProcessing || !user}
-                                            >
+                                        >
                                             <motion.div
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                                 className="flex items-center relative z-10"
                                             >
                                                 <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                {isProcessing ? 'Публикация...' : 'В сообщество'}
+                                                {isProcessing ? getTranslation('form.publishing') : getTranslation('form.to_community')}
                                             </motion.div>
                                             <motion.span
                                                 className="absolute inset-0 bg-white/10"
@@ -2399,123 +2623,127 @@ const handleDownload = async () => {
                                                 whileHover={{ scale: 1.5, opacity: 0.2 }}
                                                 transition={{ duration: 0.4 }}
                                             />
-                                            </Button>
-                                        </div>
-                                        </CardFooter>
-                                </motion.div>
-
-                            )}
-                        </AnimatePresence>
-
-                        {/* Recent generations */}
-                        <AnimatePresence>
-                            {recentGenerations.length > 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                >
-                                    <div className="p-3 pt-0 border-t">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-sm font-medium">{getTranslation('form.previous')}</h3>
-                                            <Button variant="ghost" size="sm" className="h-7 text-xs">
-                                                <Grid className="mr-1.5 h-3.5 w-3.5" />
-                                                {getTranslation('form.show_all')}
-                                            </Button>
-                                        </div>
-                                        <div className="grid grid-cols-6 gap-2">
-                                            {recentGenerations.slice(0, 6).map((image, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="group relative aspect-square overflow-hidden rounded-md border cursor-pointer bg-muted/20"
-                                                    onClick={() => setGeneratedImage(image)}
-                                                >
-                                                    <img
-                                                        src={image}
-                                                        alt={`Recent ${idx + 1}`}
-                                                        className="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
-                                                    />
-                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:bg-black/50 group-hover:opacity-100">
-                                                        <Eye className="h-5 w-5 text-white" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        </Button>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </Card>
+                                </CardFooter>
+                            </motion.div>
+                        )}
 
-                    {/* Analysis panels */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4, delay: 0.4 }}
-                        className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4"
-                    >
-                        <Card className="bg-card/60 backdrop-blur-sm col-span-1">
-                            <CardContent className="p-3">
-                                <div className="flex items-center mb-2">
-                                    <FileCode className="h-5 w-5 text-primary mr-2" />
-                                    <h3 className="text-sm font-medium">{getTranslation('form.prompt_viz')}</h3>
+                        {/* Дополнительная панель для полноэкранного режима */}
+                        {isFullscreen && generatedImage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-background/90 backdrop-blur-md p-2 rounded-lg shadow-md z-50"
+                            >
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="h-8"
+                                    onClick={handleDownload}
+                                >
+                                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                                    {getTranslation('form.download')}
+                                </Button>
+                                
+                                {sourceImage && (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-8"
+                                        onClick={() => setCompareMode(!compareMode)}
+                                    >
+                                        <FileCode className="mr-1.5 h-3.5 w-3.5" />
+                                        {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
+                                    </Button>
+                                )}
+                                
+                                <div className="flex items-center bg-muted/30 rounded-md px-2">
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8" 
+                                        onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
+                                    >
+                                        <ZoomOut className="h-4 w-4" />
+                                    </Button>
+                                    <span className="text-xs w-10 text-center">{zoomLevel}%</span>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8" 
+                                        onClick={() => setZoomLevel(Math.min(300, zoomLevel + 10))}
+                                    >
+                                        <ZoomIn className="h-4 w-4" />
+                                    </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground mb-3">{getTranslation('form.viz_desc')}</p>
-                                <div className="bg-muted/30 p-2 rounded-md max-h-40 overflow-auto">
-                                    {prompt.split(' ').map((word, idx) => {
-                                        const isKeyword = commonTags.some(tag => tag.text.includes(word.toLowerCase())) ||
-                                            stylePresets.some(style => style.name.toLowerCase().includes(word.toLowerCase()));
-                                        return (
-                                            <span
-                                                key={idx}
-                                                className={cn(
-                                                    "mr-1 inline-block",
-                                                    isKeyword ? "text-primary font-medium" : ""
-                                                )}
-                                            >
-                                              {word}
-                                            </span>
-                                        );
-                                    })}
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-card/60 backdrop-blur-sm col-span-2">
-                            <CardContent className="p-3">
-                                <div className="flex items-center mb-2">
-                                    <Palette className="h-5 w-5 text-primary mr-2" />
-                                    <h3 className="text-sm font-medium">{getTranslation('form.style_pred')}</h3>
-                                </div>
-                                <p className="text-xs text-muted-foreground mb-3">{getTranslation('form.pred_desc')}</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {stylePresets.slice(0, 4).map((style) => {
-                                        const isDetected = prompt.toLowerCase().includes(style.name.toLowerCase());
-                                        return (
+                                
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8" 
+                                    onClick={resetZoomAndPosition}
+                                >
+                                    <RotateCw className="h-4 w-4" />
+                                </Button>
+                                
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8" 
+                                    onClick={toggleFullscreen}
+                                >
+                                    <Minimize className="h-4 w-4" />
+                                </Button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Recent generations */}
+                    <AnimatePresence>
+                        {recentGenerations.length > 0 && !isFullscreen && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <div className="p-3 pt-0 border-t">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-sm font-medium">{getTranslation('form.previous')}</h3>
+                                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                                            <Grid className="mr-1.5 h-3.5 w-3.5" />
+                                            {getTranslation('form.show_all')}
+                                        </Button>
+                                    </div>
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {recentGenerations.slice(0, 6).map((image, idx) => (
                                             <div
-                                                key={style.id}
-                                                className={cn(
-                                                    "flex items-center gap-2 rounded-md border p-1.5 text-xs",
-                                                    isDetected ? "border-primary bg-primary/5" : "border-muted bg-muted/10"
-                                                )}
+                                                key={idx}
+                                                className="group relative aspect-square overflow-hidden rounded-md border cursor-pointer bg-muted/20"
+                                                onClick={() => {
+                                                    setGeneratedImage(image);
+                                                    setImageLoading(true);
+                                                    setImageError(false);
+                                                }}
                                             >
                                                 <img
-                                                    src={style.image}
-                                                    alt={style.name}
-                                                    className="h-6 w-6 rounded-md object-cover"
+                                                    src={image}
+                                                    alt={`Recent ${idx + 1}`}
+                                                    className="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
                                                 />
-                                                <span>{style.name}</span>
-                                                {isDetected && (
-                                                    <CheckCircle2 className="h-3 w-3 text-primary ml-1" />
-                                                )}
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:bg-black/50 group-hover:opacity-100">
+                                                    <Eye className="h-5 w-5 text-white" />
+                                                </div>
                                             </div>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </Card>
+            </motion.div>
             </div>
         </div>
     );

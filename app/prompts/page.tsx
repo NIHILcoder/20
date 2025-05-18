@@ -2430,7 +2430,6 @@ const handleDeleteCollection = async (collectionId: string) => {
                 </Dialog>
             )}
         </div>
-            /* Диалог массового редактирования промптов (с исправлениями) */
             <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
