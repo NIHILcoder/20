@@ -618,7 +618,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                 [generatedImage, ...(prev.length >= 6 ? prev.slice(0, 5) : prev)]
             );
         }
-        
+    
         // Начальный прогресс
         let currentProgress = 0;
         const progressInterval = setInterval(() => {
@@ -738,7 +738,6 @@ export const ImprovedGenerationForm: React.FC = () => {
                         }
                         
                         // Проверяем статус
-                        // Найдите этот блок в handleGenerate и замените его
                         if (pollResult.status === 'Ready') {
                             clearInterval(interval);
                             clearInterval(progressInterval);
@@ -831,50 +830,39 @@ export const ImprovedGenerationForm: React.FC = () => {
                                     console.error('Ошибка: imageData не является строкой:', imageData);
                                     throw new Error('Полученные данные изображения имеют неправильный формат');
                                 }
+                                
                                 // Автоматически сохраняем изображение если пользователь авторизован
-                            // Автоматически сохраняем изображение если пользователь авторизован
-                            if (user) {
-                                try {
-                                // Сохраняем изображение с привязкой к пользователю
-                                const saveResult = await saveImageToServer(imageData, prompt, user.id);
-                                if (saveResult.success) {
-                                    console.log('Изображение успешно сохранено и привязано к аккаунту:', saveResult.path);
-                                    
-                                    // Обновляем путь к изображению на тот, который вернул сервер (если он отличается)
-                                    if (saveResult.path && saveResult.path !== imageData) {
-                                    setGeneratedImage(saveResult.path);
+                                if (user) {
+                                    try {
+                                        // Сохраняем изображение с привязкой к пользователю
+                                        const saveResult = await saveImageToServer(imageData, prompt, user.id);
+                                        if (saveResult.success) {
+                                            console.log('Изображение успешно сохранено и привязано к аккаунту:', saveResult.path);
+                                            
+                                            // Обновляем путь к изображению на тот, который вернул сервер (если он отличается)
+                                            if (saveResult.path && saveResult.path !== imageData) {
+                                                setGeneratedImage(saveResult.path);
+                                            } else {
+                                                setGeneratedImage(imageData);
+                                            }
+                                        } else {
+                                            console.error('Ошибка при сохранении на сервере:', saveResult.error);
+                                            setGeneratedImage(imageData);
+                                        }
+                                    } catch (error) {
+                                        console.error('Ошибка при автоматическом сохранении изображения:', error);
+                                        // Не показываем ошибку пользователю, чтобы не прерывать процесс
+                                        setGeneratedImage(imageData);
                                     }
                                 } else {
-                                    console.error('Ошибка при сохранении на сервере:', saveResult.error);
+                                    setGeneratedImage(imageData);
                                 }
-                                } catch (error) {
-                                console.error('Ошибка при автоматическом сохранении изображения:', error);
-                                // Не показываем ошибку пользователю, чтобы не прерывать процесс
-                                }
-                            }
-                                // Установка изображения
-                                setGeneratedImage(imageData);
                                 
-                                // Остальной код остается без изменений...
                                 setProgress(100);
                                 setTimeout(() => {
                                     setGenerating(false);
                                     setLoadingStage(null);
                                 }, 500);
-                                
-                               // Автоматически сохраняем изображение - замените этот блок
-                               try {
-                                // Функция сохранения с передачей userId пользователя
-                                const saveResult = await saveImageToServer(imageData, prompt, user?.id);
-                                if (saveResult.success) {
-                                  console.log('Изображение успешно сохранено на сервере:', saveResult.path);
-                                  showNotification('Изображение сохранено в галерее', 'success');
-                                } else {
-                                  console.error('Ошибка при сохранении на сервере:', saveResult.error);
-                                }
-                              } catch (error) {
-                                console.error('Ошибка при сохранении изображения:', error);
-                              }
                                 
                                 // Добавляем в недавние изображения
                                 setRecentGenerations(prev => [imageData, ...(prev.length >= 6 ? prev.slice(0, 5) : prev)]);
@@ -921,21 +909,21 @@ export const ImprovedGenerationForm: React.FC = () => {
             
             // Типизированная обработка ошибок
             if (typeof axios !== 'undefined' && axios.isAxiosError(error)) {
-              if (error.response?.status === 400) {
-                setError('Неверные параметры запроса. Пожалуйста, проверьте ваши настройки.');
-              } else if (error.response?.status === 401) {
-                setError('Ошибка авторизации. Проверьте API ключ.');
-              } else if (error.response?.status === 429) {
-                setError('Превышен лимит запросов. Пожалуйста, повторите попытку позже.');
-              } else {
-                setError(`Ошибка сервера: ${error.response?.status || 'Неизвестная ошибка'}`);
-              }
+                if (error.response?.status === 400) {
+                    setError('Неверные параметры запроса. Пожалуйста, проверьте ваши настройки.');
+                } else if (error.response?.status === 401) {
+                    setError('Ошибка авторизации. Проверьте API ключ.');
+                } else if (error.response?.status === 429) {
+                    setError('Превышен лимит запросов. Пожалуйста, повторите попытку позже.');
+                } else {
+                    setError(`Ошибка сервера: ${error.response?.status || 'Неизвестная ошибка'}`);
+                }
             } else {
-              setError(error instanceof Error ? error.message : 'Произошла неизвестная ошибка при генерации.');
+                setError(error instanceof Error ? error.message : 'Произошла неизвестная ошибка при генерации.');
             }
             
             showNotification('Ошибка при генерации изображения', 'error');
-          }
+        }
     };
 
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
@@ -1184,27 +1172,26 @@ const handleDownload = async () => {
         setIsProcessing(true);
         
         try {
-          // Проверяем актуальность сессии пользователя перед публикацией
-          try {
-            // Делаем простой запрос для проверки авторизации
-            const authCheckResponse = await fetch('/api/auth/me', {
-              method: 'GET',
-              credentials: 'include', // Важно для передачи cookies
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (!authCheckResponse.ok) {
-              if (authCheckResponse.status === 401) {
-                throw new Error('Необходима авторизация. Пожалуйста, войдите в систему снова.');
-              }
-              throw new Error('Ошибка при проверке авторизации');
-            }
-          } catch (authError) {
-            console.error('Ошибка авторизации:', authError);
-            throw new Error(authError instanceof Error ? authError.message : 'Ошибка авторизации');
+          // Получаем CSRF-токен для NextAuth
+          console.log('Получение CSRF-токена...');
+          const csrfResponse = await fetch('/api/auth/csrf', {
+            credentials: 'include'
+          });
+          
+          if (!csrfResponse.ok) {
+            throw new Error(`Ошибка при получении CSRF-токена: ${csrfResponse.status}`);
           }
+          
+          const { csrfToken } = await csrfResponse.json();
+          console.log('CSRF-токен получен:', csrfToken.substring(0, 10) + '...');
+          
+          // Для отладки: проверяем текущую сессию
+          console.log('Проверка текущей сессии...');
+          const sessionCheckResponse = await fetch('/api/auth/session', {
+            credentials: 'include'
+          });
+          const sessionData = await sessionCheckResponse.json();
+          console.log('Данные сессии:', sessionData);
           
           // Показываем уведомление о начале процесса
           showNotification('Публикация изображения...', 'info');
@@ -1215,6 +1202,7 @@ const handleDownload = async () => {
           // Если изображение еще не сохранено (например, base64), сначала сохраняем его
           if (generatedImage.startsWith('data:image')) {
             showNotification('Сохранение изображения перед публикацией...', 'info');
+            console.log('Сохранение изображения перед публикацией...');
             const saveResult = await saveImageToServer(generatedImage, prompt, user.id);
             if (!saveResult.success) {
               throw new Error('Не удалось сохранить изображение перед публикацией');
@@ -1223,51 +1211,71 @@ const handleDownload = async () => {
             showNotification('Изображение успешно сохранено', 'success');
           }
           
-          // Публикуем работу в Community через новую функцию в imageService
-          const publishResult = await imageService.publishToCommunity({
-            userId: user.id,
-            imageUrl: imagePath,
-            prompt: prompt,
-            title: prompt.substring(0, 100),
-            description: prompt,
-            model: selectedModel,
-            parameters: {
-              steps,
-              cfgScale,
-              seed,
-              sampler,
-              ultraMode: ultraModeEnabled,
-              rawMode: rawModeEnabled,
-              hiresFixEnabled
-            }
+          console.log('Отправка запроса на публикацию...');
+          console.log('URL изображения:', imagePath);
+          console.log('ID пользователя:', user.id);
+          
+          // Публикуем работу в Community через API
+          const response = await fetch('/api/artwork/publish', {
+            method: 'POST',
+            credentials: 'include',  // Важно для передачи куки
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken, // Добавляем CSRF-токен как заголовок
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              imageUrl: imagePath,
+              prompt: prompt,
+              title: prompt.substring(0, 100),
+              description: prompt,
+              model: selectedModel,
+              parameters: {
+                steps,
+                cfgScale,
+                seed,
+                sampler,
+                ultraMode: ultraModeEnabled,
+                rawMode: rawModeEnabled,
+                hiresFixEnabled
+              },
+              csrfToken: csrfToken, // Добавляем CSRF-токен в тело запроса
+            }),
           });
           
-          if (!publishResult.success) {
-            throw new Error(publishResult.error || 'Ошибка при публикации работы');
+          console.log('Ответ API:', response.status);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Текст ошибки:', errorText);
+            
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              errorData = { error: errorText };
+            }
+            
+            throw new Error(errorData.error || `Ошибка при публикации работы: ${response.status}`);
           }
           
-          showNotification('Работа успешно опубликована в Community', 'success');
+          const result = await response.json();
+          console.log('Результат публикации:', result);
+          
+          if (result.success) {
+            showNotification('Работа успешно опубликована в Community', 'success');
+          } else {
+            throw new Error(result.error || 'Не удалось опубликовать работу');
+          }
         } catch (error) {
           console.error('Ошибка при публикации работы:', error);
           
-          // Если ошибка связана с авторизацией, предлагаем пользователю войти снова
-          if (error instanceof Error && (error.message.includes('авторизация') || error.message.includes('Необходима авторизация'))) {
-            showNotification(
-              'Необходима авторизация. Пожалуйста, войдите в систему снова.', 
-              'error'
-            );
-            // Перенаправляем на страницу входа
-            setTimeout(() => {
-              window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
-            }, 1500);
-          } else {
-            showNotification(
-              error instanceof Error ? 
-              error.message : 
-              'Не удалось опубликовать работу', 
-              'error'
-            );
-          }
+          showNotification(
+            error instanceof Error ? 
+            error.message : 
+            'Не удалось опубликовать работу', 
+            'error'
+          );
         } finally {
           setIsProcessing(false);
         }

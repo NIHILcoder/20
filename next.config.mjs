@@ -21,6 +21,24 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  // Добавляем настройки для корректной работы с куки и заголовками
+  headers: async () => {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
+    ];
+  },
+  // Разрешаем использование куки во всех запросах
+  cookies: {
+    secure: process.env.NODE_ENV === 'production',
+  },
 }
 
 mergeConfig(nextConfig, userConfig)

@@ -131,14 +131,18 @@ export default function ProfilePage() {
       
       setArtworksLoading(true);
       try {
-        const response = await getUserHistory({
-          userId: user.id,
-          limit: 9, // Показываем только 9 последних работ на странице профиля
-          offset: 0
-        });
+        // Запрос к API для получения работ пользователя
+        const response = await fetch(`/api/user/artworks?userId=${user.id}`);
         
-        if (response && response.artworks) {
-          setUserArtworks(response.artworks);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.artworks) {
+            setUserArtworks(data.artworks);
+          } else {
+            console.error('Ошибка в ответе API:', data);
+          }
+        } else {
+          console.error('Ошибка при загрузке работ пользователя:', await response.text());
         }
       } catch (error) {
         console.error('Ошибка при загрузке работ пользователя:', error);

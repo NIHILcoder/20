@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Важно! Именованный экспорт, а не export default
 export async function POST(request: NextRequest) {
   try {
     const { imageData, filename, prompt, userId } = await request.json();
@@ -46,23 +45,31 @@ export async function POST(request: NextRequest) {
         const filepath = path.join(dir, filename);
         fs.writeFileSync(filepath, Buffer.from(buffer));
 
-        // Если предоставлен userId, можно добавить запись в базу данных
-        // Эта часть закомментирована, так как возможно у вас нет доступа к БД в этом маршруте
-        /*
+        // Если предоставлен userId, добавляем запись в базу данных
         if (userId) {
           try {
             const db = await import('@/db').then(module => module.default);
             // Добавляем запись в базу данных
-            await db.query(
-              'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            const result = await db.query(
+              'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
               [userId, prompt.substring(0, 100), prompt, `/generated/${filename}`, prompt, 'flux_realistic', false]
             );
+            
+            return NextResponse.json({ 
+              success: true, 
+              path: `/generated/${filename}`,
+              artworkId: result.rows[0].id
+            });
           } catch (dbError) {
             console.error('Ошибка при сохранении в БД:', dbError);
-            // Продолжаем выполнение, даже если сохранение в БД не удалось
+            // Если произошла ошибка при сохранении в БД, все равно возвращаем успех
+            // для сохранения изображения
+            return NextResponse.json({ 
+              success: true, 
+              path: `/generated/${filename}` 
+            });
           }
         }
-        */
         
         return NextResponse.json({ 
           success: true, 
@@ -101,23 +108,31 @@ export async function POST(request: NextRequest) {
       const filepath = path.join(dir, filename);
       fs.writeFileSync(filepath, buffer);
 
-      // Если предоставлен userId, можно добавить запись в базу данных
-      // Эта часть закомментирована, так как возможно у вас нет доступа к БД в этом маршруте
-      /*
+      // Если предоставлен userId, добавляем запись в базу данных
       if (userId) {
         try {
           const db = await import('@/db').then(module => module.default);
           // Добавляем запись в базу данных
-          await db.query(
-            'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          const result = await db.query(
+            'INSERT INTO artworks (user_id, title, description, image_url, prompt, model, is_public) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
             [userId, prompt.substring(0, 100), prompt, `/generated/${filename}`, prompt, 'flux_realistic', false]
           );
+          
+          return NextResponse.json({ 
+            success: true, 
+            path: `/generated/${filename}`,
+            artworkId: result.rows[0].id 
+          });
         } catch (dbError) {
           console.error('Ошибка при сохранении в БД:', dbError);
-          // Продолжаем выполнение, даже если сохранение в БД не удалось
+          // Если произошла ошибка при сохранении в БД, все равно возвращаем успех
+          // для сохранения изображения
+          return NextResponse.json({ 
+            success: true, 
+            path: `/generated/${filename}` 
+          });
         }
       }
-      */
       
       return NextResponse.json({ 
         success: true, 
