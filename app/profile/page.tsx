@@ -131,18 +131,17 @@ export default function ProfilePage() {
       
       setArtworksLoading(true);
       try {
-        // Запрос к API для получения работ пользователя
-        const response = await fetch(`/api/user/artworks?userId=${user.id}`);
+        // Используем функцию getUserHistory из api-service
+        const response = await getUserHistory({
+          userId: user.id,
+          limit: 50,
+          filter: 'all'
+        });
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.artworks) {
-            setUserArtworks(data.artworks);
-          } else {
-            console.error('Ошибка в ответе API:', data);
-          }
+        if (response && response.artworks) {
+          setUserArtworks(response.artworks);
         } else {
-          console.error('Ошибка при загрузке работ пользователя:', await response.text());
+          console.error('Ошибка в ответе API:', response);
         }
       } catch (error) {
         console.error('Ошибка при загрузке работ пользователя:', error);
@@ -334,7 +333,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <img
-                src={user.avatar || `/placeholder.svg?height=128&width=128&text=${user.username.substring(0, 2).toUpperCase()}`}
+                src={user.avatarUrl || user.avatar || `/placeholder.svg?height=128&width=128&text=${user.username.substring(0, 2).toUpperCase()}`}
                 alt={`${user.displayName || user.username}'s profile`}
                 className="h-24 w-24 rounded-full object-cover bg-muted"
               />
