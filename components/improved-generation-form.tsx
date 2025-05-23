@@ -1477,17 +1477,17 @@ export const ImprovedGenerationForm: React.FC = () => {
         <div className="fixed inset-0 flex flex-col bg-background">
             {/* Notification */}
             <AnimatePresence>
-                {notification.visible && (
-                    <motion.div
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
-                        variants={fadeInOut}
-                        className={`fixed top-20 right-4 z-50 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
-                            notification.type === 'error' ? 'bg-red-500 text-white' :
-                            notification.type === 'info' ? 'bg-blue-500 text-white' :
-                            'bg-primary text-primary-foreground'
-                        }`}
+            {notification.visible && (
+                <motion.div
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={fadeInOut}
+                    className={`fixed top-20 right-4 z-40 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
+                        notification.type === 'error' ? 'bg-red-500 text-white' :
+                        notification.type === 'info' ? 'bg-blue-500 text-white' :
+                        'bg-primary text-primary-foreground'
+                    }`}
                     >
                         {notification.type === 'error' ? (
                             <X className="h-4 w-4" />
@@ -1502,7 +1502,7 @@ export const ImprovedGenerationForm: React.FC = () => {
             </AnimatePresence>
 
             {/* Main content container */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden ml-[240px] transition-all duration-500 ease-in-out pt-14">
                 {/* Settings panel */}
                 <AnimatePresence>
                     {!isPanelCollapsed && (
@@ -2034,7 +2034,8 @@ export const ImprovedGenerationForm: React.FC = () => {
                     <motion.div
                         initial={{ x: -20, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10"
+                        className="fixed left-[240px] top-1/2 -translate-y-1/2 z-10"
+                        style={{ marginTop: '56px' }} // Компенсируем высоту хедера
                     >
                         <Button
                             variant="default"

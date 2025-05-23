@@ -358,3 +358,14 @@ input:focus, textarea:focus, select:focus {
   0%, 100% { transform: scale(0); opacity: 0; }
   50% { transform: scale(1); opacity: 1; }
 }
+
+.generation-form-container {
+  margin-left: var(--sidebar-width, 240px);
+  transition: margin-left 0.3s ease-in-out;
+  }
+  
+  @media (max-width: 768px) {
+  .generation-form-container {
+  margin-left: 0;
+  }
+}
