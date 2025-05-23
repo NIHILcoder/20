@@ -1498,14 +1498,14 @@ export const ImprovedGenerationForm: React.FC = () => {
                 )}
             </AnimatePresence>
 
-            {/* Main content - Измененная структура для улучшения отображения */}
-            <div className="flex flex-col lg:flex-row gap-4 w-full">
+            {/* Main content - Исправленная структура для правильного отображения */}
+            <div className="flex flex-col lg:flex-row gap-6 w-full max-w-none mx-auto px-4">
                 {/* Settings panel - 40% ширины на больших экранах */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
-                    className="lg:w-[40%] w-full"
+                    className="lg:w-2/5 w-full flex-shrink-0 min-w-[420px]"
                 >
                     <Card className="shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300">
                         <CardHeader className="pb-2">
@@ -2275,475 +2275,522 @@ export const ImprovedGenerationForm: React.FC = () => {
                     </Card>
                 </motion.div>
 
-                {/* Preview panel - увеличенная панель предпросмотра (теперь занимает 60% ширины) */}
+                {/* Preview panel - исправленная панель предпросмотра */}
                 <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-                className={cn(
-                    "lg:w-[60%] w-full",
-                    isFullscreen ? "fixed inset-0 z-50 bg-background p-4" : ""
-                )}
-            >
-                <Card className={cn(
-                    "flex flex-col shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300 h-full",
-                    isFullscreen ? "h-full rounded-none border-0" : ""
-                )}>
-                    <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-                        <CardTitle className="text-base">{getTranslation('form.preview')}</CardTitle>
-                        {generatedImage && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="flex items-center gap-1.5"
-                            >
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
-                                    <ZoomOut className="h-3.5 w-3.5" />
-                                </Button>
-                                <span className="text-xs">{zoomLevel}%</span>
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
-                                    <ZoomIn className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={resetZoomAndPosition}>
-                                    <RotateCw className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
-                                    {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
-                                </Button>
-                            </motion.div>
-                        )}
-                    </CardHeader>
-                    <CardContent className="p-0 flex-grow relative">
-                        {/* Улучшенный контейнер для изображения */}
-                        <div
-                            ref={generationContainerRef}
-                            className={cn(
-                                "generation-preview relative w-full h-full bg-muted/10",
-                                aspectRatio === "1:1" ? "aspect-square" :
-                                    aspectRatio === "4:3" ? "aspect-[4/3]" :
-                                        aspectRatio === "16:9" ? "aspect-[16/9]" :
-                                            aspectRatio === "9:16" ? "aspect-[9/16]" :
-                                                aspectRatio === "2:3" ? "aspect-[2/3]" :
-                                                    "aspect-[3/2]",
-                                "border-b overflow-hidden",
-                                "min-h-[500px] lg:min-h-[600px]", // Увеличиваем минимальную высоту
-                                isFullscreen ? "min-h-[calc(100vh-120px)]" : ""
-                            )}
-                        >
-                            <AnimatePresence mode="wait">
-                                {generating ? (
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                    className={cn(
+                        "lg:w-3/5 w-full flex-grow min-w-[600px]",
+                        isFullscreen ? "fixed inset-0 z-50 bg-background flex items-center justify-center" : ""
+                    )}
+                >
+                    <Card className={cn(
+                        "flex flex-col shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300 h-full",
+                        isFullscreen ? "w-full h-full max-w-none max-h-none rounded-none border-0 bg-black" : ""
+                    )}>
+                        {/* Заголовок только для не-полноэкранного режима */}
+                        {!isFullscreen && (
+                            <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+                                <CardTitle className="text-base">{getTranslation('form.preview')}</CardTitle>
+                                {generatedImage && (
                                     <motion.div
-                                        key="generating"
-                                        initial="hidden"
-                                        animate="visible"
-                                        exit="exit"
-                                        variants={fadeInOut}
-                                        className="flex h-full w-full flex-col items-center justify-center"
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="flex items-center gap-1.5"
                                     >
-                                        <motion.div
-                                            initial={{ rotate: 0 }}
-                                            animate={{ rotate: 360 }}
-                                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                            className="mb-6"
-                                        >
-                                            <div className="relative">
-                                                <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
-                                                <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
-                                                <Sparkles className="h-12 w-12 text-primary" />
-                                            </div>
-                                        </motion.div>
-                                        <div className="w-2/3 max-w-md mb-4">
-                                            <Progress value={progress} className="h-2" />
-                                            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                                                <span>0%</span>
-                                                <span>{Math.round(progress)}%</span>
-                                                <span>100%</span>
-                                            </div>
-                                        </div>
-                                        <motion.p
-                                            className="mt-1 text-sm text-primary font-medium"
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            transition={{ duration: 0.3 }}
-                                        >
-                                            {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
-                                        </motion.p>
-                                        <motion.div
-                                            key={processingStage}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            transition={{ duration: 0.3 }}
-                                            className="mt-1 text-xs text-muted-foreground"
-                                        >
-                                            {processingStage}
-                                        </motion.div>
-                                    </motion.div>
-                                ) : generatedImage ? (
-                                    <motion.div
-                                        key="result"
-                                        initial="hidden"
-                                        animate="visible"
-                                        exit="exit"
-                                        variants={scale}
-                                        className="relative h-full w-full overflow-hidden flex items-center justify-center"
-                                    >
-                                        {compareMode && sourceImage ? (
-                                            <div className="relative h-full w-full">
-                                                <div className="absolute inset-0 flex">
-                                                    <div className="w-1/2 h-full overflow-hidden border-r border-primary">
-                                                        <img src={sourceImage} alt="Source" className="h-full w-full object-cover" />
-                                                    </div>
-                                                    <div className="w-1/2 h-full overflow-hidden">
-                                                        <img src={generatedImage} alt="Generated" className="h-full w-full object-cover" />
-                                                    </div>
-                                                </div>
-                                                <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm p-1.5 rounded-md text-xs">
-                                                    Оригинал / Сгенерированное
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <motion.div
-                                                initial={{ scale: 0.9, opacity: 0 }}
-                                                animate={{ 
-                                                    scale: zoomLevel / 100, 
-                                                    opacity: 1,
-                                                    x: imagePosition.x,
-                                                    y: imagePosition.y 
-                                                }}
-                                                transition={{ duration: 0.3 }}
-                                                className="h-full w-full"
-                                                onMouseDown={handleImageMouseDown}
-                                                onMouseMove={handleImageMouseMove}
-                                                onMouseUp={handleImageMouseUp}
-                                                onMouseLeave={handleImageMouseUp}
-                                            >
-                                                {imageLoading && (
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-muted/5">
-                                                        <RotateCw className="h-8 w-8 animate-spin text-primary/60" />
-                                                    </div>
-                                                )}
-                                                {imageError ? (
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/5">
-                                                        <X className="h-8 w-8 text-red-500 mb-2" />
-                                                        <p className="text-sm text-muted-foreground">Ошибка загрузки изображения</p>
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            className="mt-2"
-                                                            onClick={() => {
-                                                                setImageError(false);
-                                                                setImageLoading(true);
-                                                                // Перезагрузка изображения
-                                                                const imgSrc = generatedImage;
-                                                                setGeneratedImage(null);
-                                                                setTimeout(() => setGeneratedImage(imgSrc), 100);
-                                                            }}
-                                                        >
-                                                            Попробовать снова
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <img
-                                                        src={generatedImage}
-                                                        alt="Generated"
-                                                        className="h-full w-full object-contain"
-                                                        draggable={false}
-                                                        onLoad={handleImageLoad}
-                                                        onError={handleImageError}
-                                                        style={{ opacity: imageLoading ? 0 : 1 }}
-                                                    />
-                                                )}
-                                            </motion.div>
-                                        )}
-                                        
-                                        {/* Панель инструментов, если масштаб больше 100% */}
-                                        {zoomLevel > 100 && !compareMode && (
-                                            <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-lg shadow-md z-10">
-                                                <Button variant="ghost" size="sm" onClick={resetZoomAndPosition} className="text-xs">
-                                                    Центрировать
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        key="empty"
-                                        initial="hidden"
-                                        animate="visible"
-                                        exit="exit"
-                                        variants={fadeInOut}
-                                        className="flex h-full w-full flex-col items-center justify-center bg-muted/5 p-4 text-center"
-                                    >
-                                        <motion.div
-                                            className="rounded-full bg-muted/80 p-3"
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                        >
-                                            <Sparkles className="h-6 w-6 text-muted-foreground" />
-                                        </motion.div>
-                                        <motion.p
-                                            className="mt-3 text-sm text-muted-foreground"
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.1, duration: 0.3 }}
-                                        >
-                                            {getTranslation('form.image_will_appear')}
-                                        </motion.p>
-                                        <motion.p
-                                            className="mt-1 text-xs text-muted-foreground"
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.2, duration: 0.3 }}
-                                        >
-                                            {getTranslation('form.start_with_prompt')}
-                                        </motion.p>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
+                                            <ZoomOut className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <span className="text-xs">{zoomLevel}%</span>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
+                                            <ZoomIn className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={resetZoomAndPosition}>
+                                            <RotateCw className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
+                                            <Maximize className="h-3.5 w-3.5" />
+                                        </Button>
                                     </motion.div>
                                 )}
-                            </AnimatePresence>
-                        </div>
-                    </CardContent>
+                            </CardHeader>
+                        )}
 
-                    {/* Actions for generated image */}
-                    <AnimatePresence>
-                        {generatedImage && !isFullscreen && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 20 }}
-                                transition={{ duration: 0.3 }}
+                        <CardContent className={cn(
+                            "p-0 flex-grow relative",
+                            isFullscreen ? "h-full flex items-center justify-center bg-black" : ""
+                        )}>
+                            {/* Улучшенный контейнер для изображения */}
+                            <div
+                                ref={generationContainerRef}
+                                className={cn(
+                                    "generation-preview relative w-full bg-muted/10",
+                                    !isFullscreen && (
+                                        aspectRatio === "1:1" ? "aspect-square" :
+                                        aspectRatio === "4:3" ? "aspect-[4/3]" :
+                                        aspectRatio === "16:9" ? "aspect-[16/9]" :
+                                        aspectRatio === "9:16" ? "aspect-[9/16]" :
+                                        aspectRatio === "2:3" ? "aspect-[2/3]" :
+                                        "aspect-[3/2]"
+                                    ),
+                                    !isFullscreen && "border-b overflow-hidden min-h-[600px] lg:min-h-[700px] xl:min-h-[800px]",
+                                    isFullscreen ? "fixed inset-0 z-50 h-screen w-screen flex items-center justify-center bg-black overflow-hidden" : "h-full"
+                                )}
                             >
-                                <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
-                                    <div className="flex gap-1.5">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                            onClick={() => {
-                                                // Логика сохранения
-                                                showNotification('Изображение сохранено в вашу галерею');
-                                            }}
+                                <AnimatePresence mode="wait">
+                                    {generating ? (
+                                        <motion.div
+                                            key="generating"
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            variants={fadeInOut}
+                                            className="flex h-full w-full flex-col items-center justify-center"
                                         >
                                             <motion.div
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="flex items-center"
+                                                initial={{ rotate: 0 }}
+                                                animate={{ rotate: 360 }}
+                                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                                className="mb-6"
                                             >
-                                                <Save className="mr-1.5 h-3.5 w-3.5" />
-                                                {getTranslation('form.save')}
+                                                <div className="relative">
+                                                    <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
+                                                    <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
+                                                    <Sparkles className="h-12 w-12 text-primary" />
+                                                </div>
                                             </motion.div>
-                                        </Button>
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                            onClick={handleDownload}
+                                            <div className="w-2/3 max-w-md mb-4">
+                                                <Progress value={progress} className="h-2" />
+                                                <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                                    <span>0%</span>
+                                                    <span>{Math.round(progress)}%</span>
+                                                    <span>100%</span>
+                                                </div>
+                                            </div>
+                                            <motion.p
+                                                className="mt-1 text-sm text-primary font-medium"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                transition={{ duration: 0.3 }}
+                                            >
+                                                {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
+                                            </motion.p>
+                                            <motion.div
+                                                key={processingStage}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                transition={{ duration: 0.3 }}
+                                                className="mt-1 text-xs text-muted-foreground"
+                                            >
+                                                {processingStage}
+                                            </motion.div>
+                                        </motion.div>
+                                    ) : generatedImage ? (
+                                        <motion.div
+                                            key="result"
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            variants={scale}
+                                            className={cn(
+                                                "relative overflow-hidden flex items-center justify-center",
+                                                isFullscreen ? "h-full w-full" : "h-full w-full"
+                                            )}
+                                        >
+                                            {compareMode && sourceImage ? (
+                                                <div className={cn(
+                                                    "relative flex",
+                                                    isFullscreen ? "h-full w-full max-h-screen max-w-screen" : "h-full w-full"
+                                                )}>
+                                                    <div className="w-1/2 h-full overflow-hidden border-r border-primary flex items-center justify-center">
+                                                        <img 
+                                                            src={sourceImage} 
+                                                            alt="Source" 
+                                                            className={cn(
+                                                                "object-contain",
+                                                                isFullscreen ? "max-h-full max-w-full" : "h-full w-full object-cover"
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <div className="w-1/2 h-full overflow-hidden flex items-center justify-center">
+                                                        <img 
+                                                            src={generatedImage} 
+                                                            alt="Generated" 
+                                                            className={cn(
+                                                                "object-contain",
+                                                                isFullscreen ? "max-h-full max-w-full" : "h-full w-full object-cover"
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <div className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm p-2 rounded-md text-sm z-10">
+                                                        Оригинал / Сгенерированное
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <motion.div
+                                                    initial={{ scale: 0.9, opacity: 0 }}
+                                                    animate={{ 
+                                                        scale: isFullscreen ? 1 : zoomLevel / 100, 
+                                                        opacity: 1,
+                                                        x: imagePosition.x,
+                                                        y: imagePosition.y 
+                                                    }}
+                                                    transition={{ duration: 0.3 }}
+                                                    className={cn(
+                                                        "flex items-center justify-center",
+                                                        isFullscreen ? "h-full w-full" : "h-full w-full"
+                                                    )}
+                                                    onMouseDown={handleImageMouseDown}
+                                                    onMouseMove={handleImageMouseMove}
+                                                    onMouseUp={handleImageMouseUp}
+                                                    onMouseLeave={handleImageMouseUp}
+                                                >
+                                                    {imageLoading && (
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-muted/5 z-10">
+                                                            <RotateCw className="h-8 w-8 animate-spin text-primary/60" />
+                                                        </div>
+                                                    )}
+                                                    {imageError ? (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/5 z-10">
+                                                            <X className="h-8 w-8 text-red-500 mb-2" />
+                                                            <p className="text-sm text-muted-foreground">Ошибка загрузки изображения</p>
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="mt-2"
+                                                                onClick={() => {
+                                                                    setImageError(false);
+                                                                    setImageLoading(true);
+                                                                    const imgSrc = generatedImage;
+                                                                    setGeneratedImage(null);
+                                                                    setTimeout(() => setGeneratedImage(imgSrc), 100);
+                                                                }}
+                                                            >
+                                                                Попробовать снова
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <img
+                                                            src={generatedImage}
+                                                            alt="Generated"
+                                                            className={cn(
+                                                                "object-contain",
+                                                                isFullscreen 
+                                                                    ? "max-h-full max-w-full" 
+                                                                    : "h-full w-full"
+                                                            )}
+                                                            draggable={false}
+                                                            onLoad={handleImageLoad}
+                                                            onError={handleImageError}
+                                                            style={{ 
+                                                                opacity: imageLoading ? 0 : 1,
+                                                                transform: isFullscreen ? `scale(${zoomLevel / 100})` : 'none'
+                                                            }}
+                                                        />
+                                                    )}
+                                                </motion.div>
+                                            )}
+                                            
+                                            {/* Панель инструментов, если масштаб больше 100% и не полноэкранный режим */}
+                                            {zoomLevel > 100 && !compareMode && !isFullscreen && (
+                                                <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-lg shadow-md z-10">
+                                                    <Button variant="ghost" size="sm" onClick={resetZoomAndPosition} className="text-xs">
+                                                        Центрировать
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="empty"
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            variants={fadeInOut}
+                                            className="flex h-full w-full flex-col items-center justify-center bg-muted/5 p-4 text-center"
                                         >
                                             <motion.div
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="flex items-center"
+                                                className="rounded-full bg-muted/80 p-3"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
                                             >
-                                                <Download className="mr-1.5 h-3.5 w-3.5" />
-                                                {getTranslation('form.download')}
+                                                <Sparkles className="h-6 w-6 text-muted-foreground" />
                                             </motion.div>
-                                        </Button>
-                                        
-                                        {/* Кнопка сравнения, если есть исходное изображение */}
-                                        {sourceImage && (
+                                            <motion.p
+                                                className="mt-3 text-sm text-muted-foreground"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: 0.1, duration: 0.3 }}
+                                            >
+                                                {getTranslation('form.image_will_appear')}
+                                            </motion.p>
+                                            <motion.p
+                                                className="mt-1 text-xs text-muted-foreground"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: 0.2, duration: 0.3 }}
+                                            >
+                                                {getTranslation('form.start_with_prompt')}
+                                            </motion.p>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </CardContent>
+
+                        {/* Actions for generated image - только для не-полноэкранного режима */}
+                        <AnimatePresence>
+                            {generatedImage && !isFullscreen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 20 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
+                                        <div className="flex gap-1.5">
                                             <Button 
                                                 variant="outline" 
                                                 size="sm" 
                                                 className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={() => setCompareMode(!compareMode)}
+                                                onClick={() => {
+                                                    showNotification('Изображение сохранено в вашу галерею');
+                                                }}
                                             >
                                                 <motion.div
                                                     whileHover={{ scale: 1.1 }}
                                                     whileTap={{ scale: 0.9 }}
                                                     className="flex items-center"
                                                 >
-                                                    <FileCode className="mr-1.5 h-3.5 w-3.5" />
-                                                    {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
+                                                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                                                    {getTranslation('form.save')}
                                                 </motion.div>
                                             </Button>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-1.5">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                            onClick={handleVariations}
-                                        >
-                                            <motion.div
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="flex items-center"
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={handleDownload}
                                             >
-                                                <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                                                {getTranslation('form.variations')}
-                                            </motion.div>
-                                        </Button>
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                            onClick={handleShare}
-                                        >
-                                            <motion.div
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="flex items-center"
+                                                <motion.div
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                                                    {getTranslation('form.download')}
+                                                </motion.div>
+                                            </Button>
+                                            
+                                            {sourceImage && (
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                    onClick={() => setCompareMode(!compareMode)}
+                                                >
+                                                    <motion.div
+                                                        whileHover={{ scale: 1.1 }}
+                                                        whileTap={{ scale: 0.9 }}
+                                                        className="flex items-center"
+                                                    >
+                                                        <FileCode className="mr-1.5 h-3.5 w-3.5" />
+                                                        {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
+                                                    </motion.div>
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={handleVariations}
                                             >
-                                                <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                {getTranslation('form.share')}
-                                            </motion.div>
-                                        </Button>
-                                        
-                                        {/* Кнопка для публикации в Community */}
-                                        <Button 
-                                            variant="default" 
-                                            size="sm" 
-                                            className="h-8 relative overflow-hidden"
-                                            onClick={handleShareToCommunity}
-                                            disabled={isProcessing || !user}
-                                        >
-                                            <motion.div
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                className="flex items-center relative z-10"
+                                                <motion.div
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                                                    {getTranslation('form.variations')}
+                                                </motion.div>
+                                            </Button>
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
+                                                onClick={handleShare}
                                             >
-                                                <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                {isProcessing ? getTranslation('form.publishing') : getTranslation('form.to_community')}
-                                            </motion.div>
-                                            <motion.span
-                                                className="absolute inset-0 bg-white/10"
-                                                initial={{ scale: 0, opacity: 0 }}
-                                                whileHover={{ scale: 1.5, opacity: 0.2 }}
-                                                transition={{ duration: 0.4 }}
-                                            />
-                                        </Button>
-                                    </div>
-                                </CardFooter>
-                            </motion.div>
-                        )}
-
-                        {/* Дополнительная панель для полноэкранного режима */}
-                        {isFullscreen && generatedImage && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-background/90 backdrop-blur-md p-2 rounded-lg shadow-md z-50"
-                            >
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-8"
-                                    onClick={handleDownload}
-                                >
-                                    <Download className="mr-1.5 h-3.5 w-3.5" />
-                                    {getTranslation('form.download')}
-                                </Button>
-                                
-                                {sourceImage && (
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-8"
-                                        onClick={() => setCompareMode(!compareMode)}
-                                    >
-                                        <FileCode className="mr-1.5 h-3.5 w-3.5" />
-                                        {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
-                                    </Button>
-                                )}
-                                
-                                <div className="flex items-center bg-muted/30 rounded-md px-2">
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8" 
-                                        onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
-                                    >
-                                        <ZoomOut className="h-4 w-4" />
-                                    </Button>
-                                    <span className="text-xs w-10 text-center">{zoomLevel}%</span>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8" 
-                                        onClick={() => setZoomLevel(Math.min(300, zoomLevel + 10))}
-                                    >
-                                        <ZoomIn className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                                
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8" 
-                                    onClick={resetZoomAndPosition}
-                                >
-                                    <RotateCw className="h-4 w-4" />
-                                </Button>
-                                
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8" 
-                                    onClick={toggleFullscreen}
-                                >
-                                    <Minimize className="h-4 w-4" />
-                                </Button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Recent generations */}
-                    <AnimatePresence>
-                        {recentGenerations.length > 0 && !isFullscreen && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                <div className="p-3 pt-0 border-t">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-sm font-medium">{getTranslation('form.previous')}</h3>
-                                        <Button variant="ghost" size="sm" className="h-7 text-xs">
-                                            <Grid className="mr-1.5 h-3.5 w-3.5" />
-                                            {getTranslation('form.show_all')}
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-6 gap-2">
-                                        {recentGenerations.slice(0, 6).map((image, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="group relative aspect-square overflow-hidden rounded-md border cursor-pointer bg-muted/20"
-                                                onClick={() => {
-                                                    setGeneratedImage(image);
-                                                    setImageLoading(true);
-                                                    setImageError(false);
-                                                }}
+                                                <motion.div
+                                                    whileHover={{ scale: 1.1 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                                    {getTranslation('form.share')}
+                                                </motion.div>
+                                            </Button>
+                                            
+                                            <Button 
+                                                variant="default" 
+                                                size="sm" 
+                                                className="h-8 relative overflow-hidden"
+                                                onClick={handleShareToCommunity}
+                                                disabled={isProcessing || !user}
                                             >
-                                                <img
-                                                    src={image}
-                                                    alt={`Recent ${idx + 1}`}
-                                                    className="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
+                                                <motion.div
+                                                    whileHover={{ scale: 1.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    className="flex items-center relative z-10"
+                                                >
+                                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                                                    {isProcessing ? getTranslation('form.publishing') : getTranslation('form.to_community')}
+                                                </motion.div>
+                                                <motion.span
+                                                    className="absolute inset-0 bg-white/10"
+                                                    initial={{ scale: 0, opacity: 0 }}
+                                                    whileHover={{ scale: 1.5, opacity: 0.2 }}
+                                                    transition={{ duration: 0.4 }}
                                                 />
-                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:bg-black/50 group-hover:opacity-100">
-                                                    <Eye className="h-5 w-5 text-white" />
+                                            </Button>
+                                        </div>
+                                    </CardFooter>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Recent generations - только для не-полноэкранного режима */}
+                        <AnimatePresence>
+                            {recentGenerations.length > 0 && !isFullscreen && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <div className="p-3 pt-0 border-t">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-sm font-medium">{getTranslation('form.previous')}</h3>
+                                            <Button variant="ghost" size="sm" className="h-7 text-xs">
+                                                <Grid className="mr-1.5 h-3.5 w-3.5" />
+                                                {getTranslation('form.show_all')}
+                                            </Button>
+                                        </div>
+                                        <div className="grid grid-cols-6 gap-2">
+                                            {recentGenerations.slice(0, 6).map((image, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="group relative aspect-square overflow-hidden rounded-md border cursor-pointer bg-muted/20"
+                                                    onClick={() => {
+                                                        setGeneratedImage(image);
+                                                        setImageLoading(true);
+                                                        setImageError(false);
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={image}
+                                                        alt={`Recent ${idx + 1}`}
+                                                        className="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:bg-black/50 group-hover:opacity-100">
+                                                        <Eye className="h-5 w-5 text-white" />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </Card>
-            </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </Card>
+                </motion.div>
+
+                {/* Обновленная панель управления для полноэкранного режима */}
+                {isFullscreen && generatedImage && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black/80 backdrop-blur-md p-3 rounded-xl shadow-2xl z-50 border border-white/10"
+                    >
+                        {/* Группа кнопок действий */}
+                        <div className="flex items-center gap-2">
+                            <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                                onClick={handleDownload}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                {getTranslation('form.download')}
+                            </Button>
+                            
+                            {sourceImage && (
+                                <Button 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                                    onClick={() => setCompareMode(!compareMode)}
+                                >
+                                    <FileCode className="mr-2 h-4 w-4" />
+                                    {compareMode ? 'Скрыть' : 'Сравнить'}
+                                </Button>
+                            )}
+                        </div>
+                        
+                        {/* Разделитель */}
+                        <div className="h-6 w-px bg-white/20"></div>
+                        
+                        {/* Контролы масштабирования */}
+                        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-white hover:bg-white/10" 
+                                onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
+                            >
+                                <ZoomOut className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm text-white font-medium w-12 text-center">{zoomLevel}%</span>
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-white hover:bg-white/10" 
+                                onClick={() => setZoomLevel(Math.min(300, zoomLevel + 10))}
+                            >
+                                <ZoomIn className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        
+                        {/* Кнопка сброса */}
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-9 w-9 text-white hover:bg-white/10" 
+                            onClick={resetZoomAndPosition}
+                            title="Сбросить масштаб и позицию"
+                        >
+                            <RotateCw className="h-4 w-4" />
+                        </Button>
+                        
+                        {/* Разделитель */}
+                        <div className="h-6 w-px bg-white/20"></div>
+                        
+                        {/* Кнопка выхода из полноэкранного режима */}
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-9 w-9 text-white hover:bg-white/10" 
+                            onClick={toggleFullscreen}
+                            title="Выйти из полноэкранного режима"
+                        >
+                            <Minimize className="h-4 w-4" />
+                        </Button>
+                    </motion.div>
+                )}
             </div>
         </div>
     );
