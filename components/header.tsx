@@ -66,7 +66,7 @@ export function Header() {
             <div className="absolute left-1/2 transform -translate-x-1/2 top-0 h-full flex items-center">
                 <h1 className="text-xl font-bold flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
-                    VisioMera Studio
+                    VisioMera x ВизиоМера
                 </h1>
             </div>
 
