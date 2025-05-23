@@ -6,7 +6,8 @@ import {
     Sparkles, Save, Share2, Download, Upload, Copy, RefreshCw, Wand2,
     Plus, RotateCw, ZoomIn, ZoomOut, Image, Lightbulb, X, Check,
     Bolt, Brush, Camera, Info, HelpCircle, Palette, FileCode, Eye,
-    Grid, CheckCircle2, Maximize, Minimize, RotateCcw
+    Grid, CheckCircle2, Maximize, Minimize, RotateCcw, ChevronLeft,
+    ChevronRight, PanelLeftClose, PanelLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,6 +181,9 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
     const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
     const [imagePromptStrength, setImagePromptStrength] = useState<number>(0.3);
+    
+    // Новое состояние для сворачивания панели
+    const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(false);
 
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1399,9 +1403,9 @@ export const ImprovedGenerationForm: React.FC = () => {
         window.addEventListener('keydown', handleKeyDown);
         
         return () => {
-            window.addEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [generatedImage, isFullscreen, toggleFullscreen, resetZoomAndPosition]);
+    }, [generatedImage, isFullscreen]);
 
     const renderComplexityVisualization = () => {
         const complexity = calculateComplexity();
@@ -1468,10 +1472,9 @@ export const ImprovedGenerationForm: React.FC = () => {
         );
     };
 
-    // Вычисляем основной размер сетки для оптимального отображения
-    // Изменено с grid-cols-12 на flex для лучшего баланса
+    // Главный рендер с улучшенной компоновкой
     return (
-        <div className="w-full max-w-full">
+        <div className="fixed inset-0 flex flex-col bg-background">
             {/* Notification */}
             <AnimatePresence>
                 {notification.visible && (
@@ -1498,1181 +1501,824 @@ export const ImprovedGenerationForm: React.FC = () => {
                 )}
             </AnimatePresence>
 
-            {/* Main content - Исправленная структура для правильного отображения */}
-            <div className="flex flex-col lg:flex-row gap-6 w-full max-w-none mx-auto px-4">
-                {/* Settings panel - 40% ширины на больших экранах */}
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.2 }}
-                    className="lg:w-2/5 w-full flex-shrink-0 min-w-[420px]"
-                >
-                    <Card className="shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300">
-                        <CardHeader className="pb-2">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">{getTranslation('form.title')}</CardTitle>
-                                <div className="flex items-center gap-2">
-                                    <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                                        <SelectTrigger className="w-[110px] h-8 text-xs">
-                                            <SelectValue placeholder="Соотношение" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {aspectRatios.map((ratio) => (
-                                                <SelectItem key={ratio.id} value={ratio.id}>{ratio.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    onClick={() => setShowTips(!showTips)}
-                                                >
-                                                    <HelpCircle className="h-4 w-4" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Советы по промптам</TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+            {/* Main content container */}
+            <div className="flex flex-1 overflow-hidden">
+                {/* Settings panel */}
+                <AnimatePresence>
+                    {!isPanelCollapsed && (
+                        <motion.div
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 450, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="flex-shrink-0 border-r bg-card/50 backdrop-blur-sm"
+                        >
+                            <div className="h-full flex flex-col">
+                                {/* Panel header */}
+                                <div className="p-4 border-b flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-lg font-semibold">{getTranslation('form.title')}</h2>
+                                        <p className="text-xs text-muted-foreground">{getTranslation('form.configure_parameters')}</p>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setIsPanelCollapsed(true)}
+                                        className="h-8 w-8"
+                                    >
+                                        <PanelLeftClose className="h-4 w-4" />
+                                    </Button>
                                 </div>
-                            </div>
-                            <CardDescription className="text-xs">{getTranslation('form.configure_parameters')}</CardDescription>
-                        </CardHeader>
-                        <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <div className="px-4">
-                                <TabsList className="w-full">
-                                    <TabsTrigger value="basic" className="flex-1 text-xs py-1">
-                                        {getTranslation('form.basic')}
-                                    </TabsTrigger>
-                                    <TabsTrigger value="advanced" className="flex-1 text-xs py-1">
-                                        {getTranslation('form.advanced')}
-                                    </TabsTrigger>
-                                </TabsList>
-                            </div>
-                            {/* Basic tab */}
-                            <TabsContent value="basic" className="pt-1">
-                                <CardContent className="space-y-3 p-4">
-                                    {/* Tips */}
-                                    <AnimatePresence>
-                                        {showTips && (
-                                            <motion.div
-                                                initial="hidden"
-                                                animate="visible"
-                                                exit="exit"
-                                                variants={scale}
-                                                className="mb-3 p-3 bg-primary/5 border border-primary/10 rounded-md"
-                                            >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <Lightbulb className="h-4 w-4 text-primary" />
-                                                    <h4 className="text-sm font-medium">{getTranslation('form.tips.title')}</h4>
-                                                    <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => setShowTips(false)}>
-                                                        <X className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                                <ul className="text-xs space-y-1 pl-6 list-disc">
-                                                    <li>{getTranslation('form.tips.specific')}</li>
-                                                    <li>{getTranslation('form.tips.style')}</li>
-                                                    <li>{getTranslation('form.tips.lighting')}</li>
-                                                    <li>{getTranslation('form.tips.quality')}</li>
-                                                </ul>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
 
-                                    {/* Error message */}
-                                    <AnimatePresence>
-                                        {error && (
-                                            <motion.div
-                                                initial="hidden"
-                                                animate="visible"
-                                                exit="exit"
-                                                variants={scale}
-                                                className="mb-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 rounded-md"
-                                            >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <X className="h-4 w-4 text-red-500" />
-                                                    <h4 className="text-sm font-medium">{getTranslation('form.error')}</h4>
-                                                    <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-red-500" onClick={() => setError(null)}>
-                                                        <X className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                                <p className="text-xs">{error}</p>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
+                                {/* Scrollable content */}
+                                <ScrollArea className="flex-1">
+                                    <div className="p-4">
+                                        <Tabs value={activeTab} onValueChange={setActiveTab}>
+                                            <TabsList className="w-full mb-4">
+                                                <TabsTrigger value="basic" className="flex-1">
+                                                    {getTranslation('form.basic')}
+                                                </TabsTrigger>
+                                                <TabsTrigger value="advanced" className="flex-1">
+                                                    {getTranslation('form.advanced')}
+                                                </TabsTrigger>
+                                            </TabsList>
 
-                                    {/* Prompt */}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label
-                                                htmlFor="prompt"
-                                                className={`text-sm font-medium transition-colors duration-200 ${promptFocused ? "text-primary" : ""}`}
-                                            >
-                                                {getTranslation('form.prompt')}
-                                            </Label>
-                                            <div className="flex items-center space-x-1">
-                                                <Switch
-                                                    id="enhance-prompt"
-                                                    checked={enhancePrompt}
-                                                    onCheckedChange={setEnhancePrompt}
-                                                    className="data-[state=checked]:bg-primary"
-                                                />
-                                                <Label htmlFor="enhance-prompt" className="text-xs">{getTranslation('form.ai_enhance')}</Label>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                                <Lightbulb className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>ИИ улучшит ваш промпт дополнительными деталями</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
-                                        <div className="relative">
-                                            <Textarea
-                                                id="prompt"
-                                                placeholder={getTranslation('form.prompt_placeholder')}
-                                                className={cn(
-                                                    "min-h-[100px] resize-none text-sm transition-all duration-300",
-                                                    promptFocused ? "border-primary ring-1 ring-primary" : ""
-                                                )}
-                                                value={prompt}
-                                                onChange={handlePromptChange}
-                                                ref={promptInputRef}
-                                                onFocus={() => setPromptFocused(true)}
-                                                onBlur={() => setPromptFocused(false)}
-                                            />
-                                            {enhancePrompt && (
-                                                <motion.div
-                                                    className="absolute right-2 bottom-2 text-primary"
-                                                    initial="hidden"
-                                                    animate="visible"
-                                                    variants={pulse}
-                                                >
-                                                    <Sparkles className="h-4 w-4" />
-                                                </motion.div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setShowTagSuggestions(!showTagSuggestions)}
-                                                className="text-xs h-7 relative overflow-hidden group"
-                                            >
-                                              <span className="relative z-10 flex items-center">
-                                                <Plus className="mr-1 h-3 w-3 group-hover:rotate-90 transition-transform duration-200" />
-                                                  {getTranslation('form.suggestions')}
-                                              </span>
-                                                <span className="absolute inset-0 bg-primary/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200"></span>
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="text-xs h-7 relative overflow-hidden group"
-                                                onClick={copyPromptToClipboard}
-                                            >
-                                              <span className="relative z-10 flex items-center">
-                                                {lastCopiedPrompt === prompt ? (
-                                                    <Check className="mr-1 h-3 w-3 text-green-500" />
-                                                ) : (
-                                                    <Copy className="mr-1 h-3 w-3 group-hover:scale-110 transition-transform duration-200" />
-                                                )}
-                                                  {getTranslation('form.save_prompt')}
-                                              </span>
-                                                <span className="absolute inset-0 bg-primary/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-200"></span>
-                                            </Button>
-                                        </div>
+                                            {/* Basic tab */}
+                                            <TabsContent value="basic" className="space-y-4">
+                                                {/* Tips */}
+                                                <AnimatePresence>
+                                                    {showTips && (
+                                                        <motion.div
+                                                            initial="hidden"
+                                                            animate="visible"
+                                                            exit="exit"
+                                                            variants={scale}
+                                                            className="p-3 bg-primary/5 border border-primary/10 rounded-md"
+                                                        >
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <Lightbulb className="h-4 w-4 text-primary" />
+                                                                <h4 className="text-sm font-medium">{getTranslation('form.tips.title')}</h4>
+                                                                <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => setShowTips(false)}>
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                            <ul className="text-xs space-y-1 pl-6 list-disc">
+                                                                <li>{getTranslation('form.tips.specific')}</li>
+                                                                <li>{getTranslation('form.tips.style')}</li>
+                                                                <li>{getTranslation('form.tips.lighting')}</li>
+                                                                <li>{getTranslation('form.tips.quality')}</li>
+                                                            </ul>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
 
-                                        {/* Tag suggestions */}
-                                        <AnimatePresence>
-                                            {showTagSuggestions && (
-                                                <motion.div
-                                                    initial="hidden"
-                                                    animate="visible"
-                                                    exit="exit"
-                                                    variants={slideUp}
-                                                    className="rounded-md border bg-card p-2 shadow-sm"
-                                                >
-                                                    <h4 className="mb-1 text-xs font-medium">Популярные теги</h4>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {commonTags.map((tag) => (
-                                                            <Badge
-                                                                key={tag.id}
-                                                                variant="outline"
-                                                                className="cursor-pointer hover:bg-primary/10 text-xs transform hover:scale-105 transition-transform duration-200"
-                                                                onClick={() => addTagToPrompt(tag.text)}
+                                                {/* Error message */}
+                                                <AnimatePresence>
+                                                    {error && (
+                                                        <motion.div
+                                                            initial="hidden"
+                                                            animate="visible"
+                                                            exit="exit"
+                                                            variants={scale}
+                                                            className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 rounded-md"
+                                                        >
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <X className="h-4 w-4 text-red-500" />
+                                                                <h4 className="text-sm font-medium">{getTranslation('form.error')}</h4>
+                                                                <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-red-500" onClick={() => setError(null)}>
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                            <p className="text-xs">{error}</p>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Prompt */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="prompt" className="text-sm font-medium">
+                                                            {getTranslation('form.prompt')}
+                                                        </Label>
+                                                        <div className="flex items-center space-x-1">
+                                                            <Switch
+                                                                id="enhance-prompt"
+                                                                checked={enhancePrompt}
+                                                                onCheckedChange={setEnhancePrompt}
+                                                                className="data-[state=checked]:bg-primary"
+                                                            />
+                                                            <Label htmlFor="enhance-prompt" className="text-xs">{getTranslation('form.ai_enhance')}</Label>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative">
+                                                        <Textarea
+                                                            id="prompt"
+                                                            placeholder={getTranslation('form.prompt_placeholder')}
+                                                            className="min-h-[100px] resize-none text-sm"
+                                                            value={prompt}
+                                                            onChange={handlePromptChange}
+                                                            ref={promptInputRef}
+                                                        />
+                                                        {enhancePrompt && (
+                                                            <motion.div
+                                                                className="absolute right-2 bottom-2 text-primary"
+                                                                initial="hidden"
+                                                                animate="visible"
+                                                                variants={pulse}
                                                             >
-                                                                {tag.text}
-                                                            </Badge>
+                                                                <Sparkles className="h-4 w-4" />
+                                                            </motion.div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setShowTagSuggestions(!showTagSuggestions)}
+                                                            className="text-xs h-7"
+                                                        >
+                                                            <Plus className="mr-1 h-3 w-3" />
+                                                            {getTranslation('form.suggestions')}
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="text-xs h-7"
+                                                            onClick={copyPromptToClipboard}
+                                                        >
+                                                            {lastCopiedPrompt === prompt ? (
+                                                                <Check className="mr-1 h-3 w-3 text-green-500" />
+                                                            ) : (
+                                                                <Copy className="mr-1 h-3 w-3" />
+                                                            )}
+                                                            {getTranslation('form.save_prompt')}
+                                                        </Button>
+                                                    </div>
+
+                                                    {/* Tag suggestions */}
+                                                    <AnimatePresence>
+                                                        {showTagSuggestions && (
+                                                            <motion.div
+                                                                initial="hidden"
+                                                                animate="visible"
+                                                                exit="exit"
+                                                                variants={slideUp}
+                                                                className="rounded-md border bg-card p-2 shadow-sm"
+                                                            >
+                                                                <h4 className="mb-1 text-xs font-medium">Популярные теги</h4>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {commonTags.map((tag) => (
+                                                                        <Badge
+                                                                            key={tag.id}
+                                                                            variant="outline"
+                                                                            className="cursor-pointer hover:bg-primary/10 text-xs"
+                                                                            onClick={() => addTagToPrompt(tag.text)}
+                                                                        >
+                                                                            {tag.text}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+
+                                                {/* Negative prompt */}
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="negative-prompt" className="text-sm font-medium">
+                                                        {getTranslation('form.negative_prompt')}
+                                                    </Label>
+                                                    <Textarea
+                                                        id="negative-prompt"
+                                                        placeholder={getTranslation('form.negative_prompt_placeholder')}
+                                                        className="min-h-[60px] resize-none text-sm"
+                                                        value={negativePrompt}
+                                                        onChange={(e) => setNegativePrompt(e.target.value)}
+                                                    />
+                                                </div>
+
+                                                {/* Model selection */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium">{getTranslation('form.model_selection')}</Label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {[
+                                                            { id: "flux", name: "FLUX Standard", icon: <Bolt className="h-5 w-5 text-blue-500" /> },
+                                                            { id: "flux_ultra", name: "FLUX Ultra", icon: <Sparkles className="h-5 w-5 text-purple-500" /> },
+                                                            { id: "flux_raw", name: "FLUX Raw", icon: <Camera className="h-5 w-5 text-green-500" /> },
+                                                            { id: "flux_fill", name: "FLUX Fill", icon: <Brush className="h-5 w-5 text-amber-500" /> }
+                                                        ].map((model) => (
+                                                            <div
+                                                                key={model.id}
+                                                                className={cn(
+                                                                    "flex items-center gap-2 rounded-md border p-2 cursor-pointer transition-all",
+                                                                    selectedModel === model.id 
+                                                                        ? "border-primary bg-primary/5" 
+                                                                        : "hover:border-primary/30"
+                                                                )}
+                                                                onClick={() => setSelectedModel(model.id)}
+                                                            >
+                                                                {model.icon}
+                                                                <span className="text-xs font-medium">{model.name}</span>
+                                                            </div>
                                                         ))}
                                                     </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-
-                                    {/* Negative prompt */}
-                                    <div className="space-y-1">
-                                        <Label htmlFor="negative-prompt" className="text-sm font-medium">
-                                            {getTranslation('form.negative_prompt')}
-                                        </Label>
-                                        <Textarea
-                                            id="negative-prompt"
-                                            placeholder={getTranslation('form.negative_prompt_placeholder')}
-                                            className="min-h-[60px] resize-none text-sm"
-                                            value={negativePrompt}
-                                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNegativePrompt(e.target.value)}
-                                        />
-                                    </div>
-
-                                    {/* Улучшенный выбор модели с подробной информацией */}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-sm font-medium">{getTranslation('form.model_selection')}</Label>
-                                            <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-5 w-5">
-                                                    <HelpCircle className="h-3.5 w-3.5" />
-                                                </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent className="w-80">
-                                                <p className="text-xs">Выберите модель в зависимости от желаемого результата. 
-                                                Разные модели оптимизированы для различных типов изображений.</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            </TooltipProvider>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {[
-                                            {
-                                                id: "flux",
-                                                name: "FLUX Standard",
-                                                description: "Стандартный режим",
-                                                longDescription: "Универсальная модель, подходит для большинства типов изображений. Быстрая генерация со сбалансированным качеством и временем обработки.",
-                                                icon: <Bolt className="h-8 w-8 text-blue-500 mb-1" />
-                                            },
-                                            {
-                                                id: "flux_ultra",
-                                                name: "FLUX Ultra",
-                                                description: "Высокое качество",
-                                                longDescription: "Улучшенное качество и детализация. Идеально подходит для сложных изображений с мелкими деталями. Требует больше времени на обработку.",
-                                                icon: <Sparkles className="h-8 w-8 text-purple-500 mb-1" />
-                                            },
-                                            {
-                                                id: "flux_raw",
-                                                name: "FLUX Raw",
-                                                description: "Фотореализм",
-                                                longDescription: "Специализированная модель для создания фотореалистичных изображений с естественным освещением и текстурами. Отлично подходит для портретов и природных сцен.",
-                                                icon: <Camera className="h-8 w-8 text-green-500 mb-1" />
-                                            },
-                                            {
-                                                id: "flux_fill",
-                                                name: "FLUX Fill",
-                                                description: "Заполнение",
-                                                longDescription: "Модель для заполнения отсутствующих частей изображения или дорисовки по контексту. Идеально для удаления объектов или дополнения изображения новыми элементами.",
-                                                icon: <Brush className="h-8 w-8 text-amber-500 mb-1" />
-                                            }
-                                            ].map((model) => (
-                                            <div
-                                                key={model.id}
-                                                className={cn(
-                                                "flex flex-col items-center rounded-md border p-3 cursor-pointer transition-all relative group",
-                                                selectedModel === model.id 
-                                                    ? "border-primary bg-primary/5" 
-                                                    : "hover:border-primary/30 hover:bg-muted/30"
-                                                )}
-                                                onClick={() => {
-                                                setSelectedModel(model.id);
-                                                // Установка режимов в зависимости от модели
-                                                if (model.id === 'flux_ultra') {
-                                                    setUltraModeEnabled(true);
-                                                    setRawModeEnabled(false);
-                                                    showNotification('Включен режим Ultra для высокого качества', 'info');
-                                                } else if (model.id === 'flux_raw') {
-                                                    setUltraModeEnabled(true);
-                                                    setRawModeEnabled(true);
-                                                    showNotification('Включен фотореалистичный режим', 'info');
-                                                } else if (model.id === 'flux_fill') {
-                                                    // Для Fill модели можно автоматически переключиться в режим img2img
-                                                    if (!sourceImage) {
-                                                    showNotification('Загрузите изображение для режима заполнения', 'info');
-                                                    setActiveTab('advanced');
-                                                    }
-                                                } else {
-                                                    setUltraModeEnabled(false);
-                                                    setRawModeEnabled(false);
-                                                }
-                                                }}
-                                            >
-                                                {model.icon}
-                                                <div className="text-sm font-medium mb-1">{model.name}</div>
-                                                <div className="text-xs text-muted-foreground text-center">
-                                                {model.description}
                                                 </div>
-                                                
-                                                {/* Индикатор выбранной модели */}
-                                                {selectedModel === model.id && (
-                                                <div className="absolute -top-1 -right-1 bg-primary text-white rounded-full p-0.5">
-                                                    <CheckCircle2 className="h-4 w-4" />
+
+                                                {/* Size options */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium">{getTranslation('form.size')}</Label>
+                                                    <Select value={selectedSize} onValueChange={setSelectedSize}>
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Выберите размер" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {sizeOptions.map((size) => (
+                                                                <SelectItem key={size.id} value={size.id}>
+                                                                    {size.name} - {size.description}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
-                                                )}
-                                                
-                                                {/* Всплывающая карточка с подробным описанием */}
-                                                <div className="absolute z-50 left-0 right-0 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                                <Card className="text-xs shadow-lg">
-                                                    <CardContent className="p-3">
-                                                    <div className="font-medium mb-1">{model.name}</div>
-                                                    <p>{model.longDescription}</p>
-                                                    <div className="text-primary text-[10px] mt-1.5">
-                                                        {model.id === 'flux' ? '✓ Оптимальный баланс скорости и качества' : 
-                                                        model.id === 'flux_ultra' ? '✓ Максимальное качество деталей' : 
-                                                        model.id === 'flux_raw' ? '✓ Идеально для фотореалистичных изображений' : 
-                                                        '✓ Специально для заполнения изображений'}
+
+                                                {/* Aspect ratio */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium">Соотношение сторон</Label>
+                                                    <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Соотношение" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {aspectRatios.map((ratio) => (
+                                                                <SelectItem key={ratio.id} value={ratio.id}>{ratio.name}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </TabsContent>
+
+                                            {/* Advanced tab */}
+                                            <TabsContent value="advanced" className="space-y-4">
+                                                {/* BFL API modes */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium">Режимы BFL API</Label>
+                                                    <div className="space-y-2 rounded-md border p-2.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <Sparkles className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="text-xs">{getTranslation('form.ultra_mode')}</span>
+                                                            </div>
+                                                            <Switch
+                                                                checked={ultraModeEnabled}
+                                                                onCheckedChange={setUltraModeEnabled}
+                                                                className="data-[state=checked]:bg-primary"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <Image className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="text-xs">{getTranslation('form.raw_mode')}</span>
+                                                            </div>
+                                                            <Switch
+                                                                checked={rawModeEnabled}
+                                                                onCheckedChange={setRawModeEnabled}
+                                                                disabled={!ultraModeEnabled}
+                                                                className="data-[state=checked]:bg-primary"
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    </CardContent>
-                                                </Card>
                                                 </div>
-                                            </div>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Добавим небольшую подсказку */}
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Наведите на модель для получения подробной информации
-                                        </p>
-                                    </div>
 
-                                    {/* Size options */}
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">{getTranslation('form.size')}</Label>
-                                        <Select value={selectedSize} onValueChange={setSelectedSize}>
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Выберите размер" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectGroup>
-                                                    <SelectLabel>Размер изображения</SelectLabel>
-                                                    {sizeOptions.map((size) => (
-                                                        <SelectItem 
-                                                            key={size.id} 
-                                                            value={size.id}
-                                                            onClick={() => {
-                                                                // Если выбран большой размер, включаем Ultra режим
-                                                                if (size.id === "1536") {
-                                                                    setUltraModeEnabled(true);
-                                                                    showNotification('Режим Ultra автоматически включен для высокого разрешения', 'info');
-                                                                }
-                                                            }}
-                                                        >
-                                                            {size.name} - {size.description}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectGroup>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </CardContent>
-                            </TabsContent>
-
-                            {/* Advanced tab */}
-                            <TabsContent value="advanced" className="pt-1">
-                                <CardContent className="space-y-3 p-4">
-                                    {/* Ultra Mode */}
-                                    <div className="space-y-1.5 pt-1">
-                                        <Label className="text-sm font-medium">Режимы BFL API</Label>
-                                        <div className="space-y-2.5 rounded-md border p-2.5">
-                                            {/* Ultra Mode Toggle */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Sparkles className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-xs">{getTranslation('form.ultra_mode')}</span>
-                                                </div>
-                                                <Switch
-                                                    checked={ultraModeEnabled}
-                                                    onCheckedChange={(checked) => {
-                                                        setUltraModeEnabled(checked);
-                                                        // Если Ultra выключается, выключаем и Raw
-                                                        if (!checked) {
-                                                            setRawModeEnabled(false);
-                                                        }
-                                                        setShowComplexityVisualization(true);
-                                                    }}
-                                                    className="data-[state=checked]:bg-primary"
-                                                />
-                                            </div>
-
-                                            {/* Raw Mode Toggle (только для Ultra) */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Image className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-xs">{getTranslation('form.raw_mode')}</span>
-                                                </div>
-                                                <Switch
-                                                    checked={rawModeEnabled}
-                                                    onCheckedChange={setRawModeEnabled}
-                                                    disabled={!ultraModeEnabled}
-                                                    className="data-[state=checked]:bg-primary"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Seed */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="seed" className="text-sm">{getTranslation('form.seed')}</Label>
-                                            <div className="flex items-center">
-                                                <Switch
-                                                    id="random-seed"
-                                                    checked={useRandomSeed}
-                                                    onCheckedChange={setUseRandomSeed}
-                                                    className="mr-2 data-[state=checked]:bg-primary"
-                                                />
-                                                <Label htmlFor="random-seed" className="text-xs">{getTranslation('form.random')}</Label>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <Input
-                                                id="seed"
-                                                type="number"
-                                                placeholder={getTranslation('form.random')}
-                                                className="flex-1 h-8 text-sm"
-                                                value={seed}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSeed(Number(e.target.value))}
-                                                disabled={useRandomSeed}
-                                            />
-                                            <Button
-                                                variant="outline"
-                                                size="icon"
-                                                className="h-8 w-8 hover:rotate-180 transition-transform duration-500"
-                                                onClick={randomizeSeed}
-                                            >
-                                                <RefreshCw className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {/* Sampling steps */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="steps" className="text-sm">{getTranslation('form.steps')}</Label>
-                                            <span className="text-xs text-muted-foreground">{steps}</span>
-                                        </div>
-                                        <Slider
-                                            id="steps"
-                                            value={[steps]}
-                                            min={20}
-                                            max={50}
-                                            step={1}
-                                            className="py-1"
-                                            onValueChange={(value) => {
-                                                setSteps(value[0]);
-                                                setShowComplexityVisualization(true);
-                                            }}
-                                        />
-                                        {renderParameterVisualization('steps', steps, 20, 50, {
-                                            min: 'Быстрее',
-                                            max: 'Качественнее'
-                                        })}
-                                    </div>
-
-                                    {/* CFG Scale */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="cfg" className="text-sm">{getTranslation('form.cfg')}</Label>
-                                            <span className="text-xs text-muted-foreground">{cfgScale}</span>
-                                        </div>
-                                        <Slider
-                                            id="cfg"
-                                            value={[cfgScale]}
-                                            min={1.5}
-                                            max={30}
-                                            step={0.1}
-                                            className="py-1"
-                                            onValueChange={(value) => {
-                                                setCfgScale(value[0]);
-                                                setShowComplexityVisualization(true);
-                                            }}
-                                        />
-                                        {renderParameterVisualization('cfg', cfgScale, 1.5, 30, {
-                                            min: 'Креативнее',
-                                            max: 'Точнее'
-                                        })}
-                                    </div>
-
-                                    {/* Sampler - только для стандартного режима */}
-                                    {!ultraModeEnabled && (
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                                <Label htmlFor="sampler" className="text-sm">{getTranslation('form.sampler')}</Label>
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                                <Info className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Алгоритм создания изображения. Разные сэмплеры дают разные результаты.</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                            <Select value={sampler} onValueChange={setSampler}>
-                                                <SelectTrigger id="sampler" className="h-8 text-sm">
-                                                    <SelectValue placeholder="Выберите сэмплер" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {availableSamplers.map((item) => (
-                                                        <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    )}
-
-                                    {/* Image to image */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-sm">{getTranslation('form.img2img')}</Label>
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                            <Info className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>Используйте существующее изображение как основу для генерации</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                        </div>
-
-                                        {/* Drag & drop area */}
-                                        <motion.div
-                                            ref={dropZoneRef}
-                                            className={cn(
-                                                "relative flex h-24 flex-col items-center justify-center rounded-md border border-dashed transition-colors",
-                                                isDragging ? "border-primary bg-primary/5" : "hover:border-primary hover:bg-secondary/50",
-                                                (sourceImage || isUploading) && "border-solid"
-                                            )}
-                                            onClick={handleFileUpload}
-                                            animate={{
-                                                borderColor: isDragging ? "hsl(var(--primary))" : "hsl(var(--border))",
-                                                backgroundColor: isDragging ? "rgba(var(--primary), 0.1)" : "transparent"
-                                            }}
-                                            transition={{ duration: 0.2 }}
-                                        >
-                                            <AnimatePresence mode="wait">
-                                                {isUploading ? (
-                                                    <motion.div
-                                                        key="uploading"
-                                                        initial="hidden"
-                                                        animate="visible"
-                                                        exit="exit"
-                                                        variants={fadeInOut}
-                                                        className="flex flex-col items-center justify-center"
-                                                    >
-                                                        <RotateCw className="mb-1 h-4 w-4 animate-spin text-primary" />
-                                                        <p className="text-xs text-primary">Загрузка...</p>
-                                                    </motion.div>
-                                                ) : sourceImage ? (
-                                                    <motion.div
-                                                        key="image"
-                                                        initial="hidden"
-                                                        animate="visible"
-                                                        exit="exit"
-                                                        variants={scale}
-                                                        className="relative h-full w-full"
-                                                    >
-                                                        <img
-                                                            src={sourceImage}
-                                                            alt="Source"
-                                                            className="h-full w-full object-cover rounded-md"
+                                                {/* Seed */}
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="seed" className="text-sm">{getTranslation('form.seed')}</Label>
+                                                        <div className="flex items-center">
+                                                            <Switch
+                                                                id="random-seed"
+                                                                checked={useRandomSeed}
+                                                                onCheckedChange={setUseRandomSeed}
+                                                                className="mr-2 data-[state=checked]:bg-primary"
+                                                            />
+                                                            <Label htmlFor="random-seed" className="text-xs">{getTranslation('form.random')}</Label>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <Input
+                                                            id="seed"
+                                                            type="number"
+                                                            placeholder={getTranslation('form.random')}
+                                                            className="flex-1 h-8 text-sm"
+                                                            value={seed}
+                                                            onChange={(e) => setSeed(Number(e.target.value))}
+                                                            disabled={useRandomSeed}
                                                         />
                                                         <Button
-                                                            variant="destructive"
+                                                            variant="outline"
                                                             size="icon"
-                                                            className="absolute right-1 top-1 h-6 w-6 rounded-full opacity-80 hover:opacity-100 transition-opacity"
-                                                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                                                e.stopPropagation();
-                                                                setSourceImage(null);
-                                                            }}
+                                                            className="h-8 w-8"
+                                                            onClick={randomizeSeed}
                                                         >
-                                                            <X className="h-3 w-3" />
+                                                            <RefreshCw className="h-3.5 w-3.5" />
                                                         </Button>
-                                                    </motion.div>
-                                                ) : isDragging ? (
-                                                    <motion.div
-                                                        key="drop"
-                                                        initial="hidden"
-                                                        animate="visible"
-                                                        exit="exit"
-                                                        variants={scale}
-                                                        className="flex flex-col items-center"
-                                                    >
-                                                        <Image className="mb-1 h-6 w-6 text-primary" />
-                                                        <p className="text-xs text-primary">{getTranslation('form.drop_image')}</p>
-                                                    </motion.div>
-                                                ) : (
-                                                    <motion.div
-                                                        key="default"
-                                                        initial="hidden"
-                                                        animate="visible"
-                                                        exit="exit"
-                                                        variants={fadeInOut}
-                                                        className="flex flex-col items-center"
-                                                    >
-                                                        <Upload className="mb-1 h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                        <p className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">{getTranslation('form.drop_image')}</p>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={handleFileInputChange}
-                                            />
-                                        </motion.div>
+                                                    </div>
+                                                </div>
 
-                                        {/* Strength slider */}
-                                        <AnimatePresence>
-                                            {sourceImage && (
-                                                <motion.div
-                                                    initial="hidden"
-                                                    animate="visible"
-                                                    exit="exit"
-                                                    variants={slideUp}
-                                                    className="mt-2 space-y-1"
-                                                >
+                                                {/* Steps */}
+                                                <div className="space-y-1.5">
                                                     <div className="flex items-center justify-between">
-                                                        <Label htmlFor="img2img-strength" className="text-xs">{getTranslation('form.strength')}</Label>
-                                                        <span className="text-xs text-muted-foreground">{strength.toFixed(2)}</span>
+                                                        <Label htmlFor="steps" className="text-sm">{getTranslation('form.steps')}</Label>
+                                                        <span className="text-xs text-muted-foreground">{steps}</span>
                                                     </div>
                                                     <Slider
-                                                        id="img2img-strength"
-                                                        value={[strength]}
-                                                        min={0}
-                                                        max={1}
-                                                        step={0.01}
-                                                        className="py-1"
-                                                        onValueChange={(value) => setStrength(value[0])}
+                                                        id="steps"
+                                                        value={[steps]}
+                                                        min={20}
+                                                        max={50}
+                                                        step={1}
+                                                        onValueChange={(value) => setSteps(value[0])}
                                                     />
-                                                    <div className="flex justify-between text-xs text-muted-foreground">
-                                                        <span>{getTranslation('form.mild')}</span>
-                                                        <span>{getTranslation('form.complete')}</span>
+                                                    {renderParameterVisualization('steps', steps, 20, 50, {
+                                                        min: 'Быстрее',
+                                                        max: 'Качественнее'
+                                                    })}
+                                                </div>
+
+                                                {/* CFG Scale */}
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="cfg" className="text-sm">{getTranslation('form.cfg')}</Label>
+                                                        <span className="text-xs text-muted-foreground">{cfgScale}</span>
                                                     </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-
-                                    {/* Additional parameters */}
-                                    <div className="space-y-1.5 pt-1">
-                                        <Label className="text-sm font-medium">{getTranslation('form.additional')}</Label>
-                                        <div className="space-y-2.5 rounded-md border p-2.5">
-                                            {/* Hires.fix */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <ZoomIn className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-xs">{getTranslation('form.hires')}</span>
+                                                    <Slider
+                                                        id="cfg"
+                                                        value={[cfgScale]}
+                                                        min={1.5}
+                                                        max={30}
+                                                        step={0.1}
+                                                        onValueChange={(value) => setCfgScale(value[0])}
+                                                    />
+                                                    {renderParameterVisualization('cfg', cfgScale, 1.5, 30, {
+                                                        min: 'Креативнее',
+                                                        max: 'Точнее'
+                                                    })}
                                                 </div>
-                                                <Switch
-                                                    checked={hiresFixEnabled}
-                                                    onCheckedChange={(checked) => {
-                                                        setHiresFixEnabled(checked);
-                                                        if (checked) {
-                                                            // Рекомендуем Ultra режим при включении Hires.fix
-                                                            setUltraModeEnabled(true);
-                                                        }
-                                                        setShowComplexityVisualization(true);
-                                                    }}
-                                                    className="data-[state=checked]:bg-primary"
-                                                />
-                                            </div>
 
-                                            {/* Upscaler */}
-                                            <div className="space-y-1">
-                                                <div className="flex items-center justify-between">
-                                                    <Label htmlFor="upscaler" className="text-xs">{getTranslation('form.upscaler')}</Label>
+                                                {/* Image to image */}
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-sm">{getTranslation('form.img2img')}</Label>
+                                                    <motion.div
+                                                        ref={dropZoneRef}
+                                                        className={cn(
+                                                            "relative flex h-24 flex-col items-center justify-center rounded-md border border-dashed transition-colors cursor-pointer",
+                                                            isDragging ? "border-primary bg-primary/5" : "hover:border-primary hover:bg-secondary/50",
+                                                            (sourceImage || isUploading) && "border-solid"
+                                                        )}
+                                                        onClick={handleFileUpload}
+                                                    >
+                                                        <AnimatePresence mode="wait">
+                                                            {isUploading ? (
+                                                                <motion.div
+                                                                    key="uploading"
+                                                                    initial="hidden"
+                                                                    animate="visible"
+                                                                    exit="exit"
+                                                                    variants={fadeInOut}
+                                                                    className="flex flex-col items-center justify-center"
+                                                                >
+                                                                    <RotateCw className="mb-1 h-4 w-4 animate-spin text-primary" />
+                                                                    <p className="text-xs text-primary">Загрузка...</p>
+                                                                </motion.div>
+                                                            ) : sourceImage ? (
+                                                                <motion.div
+                                                                    key="image"
+                                                                    initial="hidden"
+                                                                    animate="visible"
+                                                                    exit="exit"
+                                                                    variants={scale}
+                                                                    className="relative h-full w-full"
+                                                                >
+                                                                    <img
+                                                                        src={sourceImage}
+                                                                        alt="Source"
+                                                                        className="h-full w-full object-cover rounded-md"
+                                                                    />
+                                                                    <Button
+                                                                        variant="destructive"
+                                                                        size="icon"
+                                                                        className="absolute right-1 top-1 h-6 w-6 rounded-full"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSourceImage(null);
+                                                                        }}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </Button>
+                                                                </motion.div>
+                                                            ) : (
+                                                                <motion.div
+                                                                    key="default"
+                                                                    initial="hidden"
+                                                                    animate="visible"
+                                                                    exit="exit"
+                                                                    variants={fadeInOut}
+                                                                    className="flex flex-col items-center"
+                                                                >
+                                                                    <Upload className="mb-1 h-5 w-5 text-muted-foreground" />
+                                                                    <p className="text-xs text-muted-foreground">{getTranslation('form.drop_image')}</p>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                        <input
+                                                            ref={fileInputRef}
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={handleFileInputChange}
+                                                        />
+                                                    </motion.div>
+
+                                                    {/* Strength slider */}
+                                                    <AnimatePresence>
+                                                        {sourceImage && (
+                                                            <motion.div
+                                                                initial="hidden"
+                                                                animate="visible"
+                                                                exit="exit"
+                                                                variants={slideUp}
+                                                                className="mt-2 space-y-1"
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <Label htmlFor="img2img-strength" className="text-xs">{getTranslation('form.strength')}</Label>
+                                                                    <span className="text-xs text-muted-foreground">{strength.toFixed(2)}</span>
+                                                                </div>
+                                                                <Slider
+                                                                    id="img2img-strength"
+                                                                    value={[strength]}
+                                                                    min={0}
+                                                                    max={1}
+                                                                    step={0.01}
+                                                                    onValueChange={(value) => setStrength(value[0])}
+                                                                />
+                                                                <div className="flex justify-between text-xs text-muted-foreground">
+                                                                    <span>{getTranslation('form.mild')}</span>
+                                                                    <span>{getTranslation('form.complete')}</span>
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </div>
-                                                <Select
-                                                    value={selectedUpscaler}
-                                                    onValueChange={setSelectedUpscaler}
-                                                    disabled={!hiresFixEnabled}
-                                                >
-                                                    <SelectTrigger id="upscaler" className="h-7 text-xs">
-                                                        <SelectValue placeholder="Выберите апскейлер" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {upscalers.map((upscaler) => (
-                                                            <SelectItem key={upscaler.id} value={upscaler.id}>{upscaler.name}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
+
+                                                {/* Additional parameters */}
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-sm font-medium">{getTranslation('form.additional')}</Label>
+                                                    <div className="space-y-2.5 rounded-md border p-2.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <ZoomIn className="h-4 w-4 text-muted-foreground" />
+                                                                <span className="text-xs">{getTranslation('form.hires')}</span>
+                                                            </div>
+                                                            <Switch
+                                                                checked={hiresFixEnabled}
+                                                                onCheckedChange={setHiresFixEnabled}
+                                                                className="data-[state=checked]:bg-primary"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Complexity visualization */}
+                                                <AnimatePresence>
+                                                    {showComplexityVisualization && renderComplexityVisualization()}
+                                                </AnimatePresence>
+                                            </TabsContent>
+                                        </Tabs>
                                     </div>
+                                </ScrollArea>
 
-                                    {/* Complexity visualization */}
-                                    <AnimatePresence>
-                                        {showComplexityVisualization && renderComplexityVisualization()}
-                                    </AnimatePresence>
-                                </CardContent>
-                            </TabsContent>
-                        </Tabs>
-                        <CardFooter className="p-3">
-                            <Button
-                                onClick={handleGenerate}
-                                disabled={generating || !prompt.trim()}
-                                className={cn(
-                                    "w-full h-9 relative overflow-hidden transition-all duration-300",
-                                    prompt.trim() && !generating ? "bg-primary hover:bg-primary/90" : ""
-                                )}
-                            >
-                                {generating ? (
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="flex items-center"
+                                {/* Generate button */}
+                                <div className="p-4 border-t">
+                                    <Button
+                                        onClick={handleGenerate}
+                                        disabled={generating || !prompt.trim()}
+                                        className="w-full h-10 relative overflow-hidden"
                                     >
-                                        <RotateCw className="mr-2 h-4 w-4 animate-spin" />
-                                        {loadingStage || `${getTranslation('form.generating')} ${Math.round(progress)}%`}
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        className="flex items-center"
-                                        whileHover={{ scale: 1.03 }}
-                                        whileTap={{ scale: 0.97 }}
-                                    >
-                                        <Sparkles className="mr-2 h-4 w-4" />
-                                        {getTranslation('form.generate')}
-                                    </motion.div>
-                                )}
-                                {!generating && prompt.trim() && (
-                                    <motion.span
-                                        className="absolute inset-0 bg-white/10"
-                                        initial={{ scale: 0, opacity: 0 }}
-                                        whileHover={{ scale: 1.5, opacity: 0.2 }}
-                                        transition={{ duration: 0.4 }}
-                                    />
-                                )}
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                </motion.div>
-
-                {/* Preview panel - исправленная панель предпросмотра */}
-                <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                    className={cn(
-                        "lg:w-3/5 w-full flex-grow min-w-[600px]",
-                        isFullscreen ? "fixed inset-0 z-50 bg-background flex items-center justify-center" : ""
-                    )}
-                >
-                    <Card className={cn(
-                        "flex flex-col shadow-sm border-muted/80 hover:border-primary/30 transition-colors duration-300 h-full",
-                        isFullscreen ? "w-full h-full max-w-none max-h-none rounded-none border-0 bg-black" : ""
-                    )}>
-                        {/* Заголовок только для не-полноэкранного режима */}
-                        {!isFullscreen && (
-                            <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-                                <CardTitle className="text-base">{getTranslation('form.preview')}</CardTitle>
-                                {generatedImage && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="flex items-center gap-1.5"
-                                    >
-                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
-                                            <ZoomOut className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <span className="text-xs">{zoomLevel}%</span>
-                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
-                                            <ZoomIn className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={resetZoomAndPosition}>
-                                            <RotateCw className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
-                                            <Maximize className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </motion.div>
-                                )}
-                            </CardHeader>
-                        )}
-
-                        <CardContent className={cn(
-                            "p-0 flex-grow relative",
-                            isFullscreen ? "h-full flex items-center justify-center bg-black" : ""
-                        )}>
-                            {/* Улучшенный контейнер для изображения */}
-                            <div
-                                ref={generationContainerRef}
-                                className={cn(
-                                    "generation-preview relative w-full bg-muted/10",
-                                    !isFullscreen && (
-                                        aspectRatio === "1:1" ? "aspect-square" :
-                                        aspectRatio === "4:3" ? "aspect-[4/3]" :
-                                        aspectRatio === "16:9" ? "aspect-[16/9]" :
-                                        aspectRatio === "9:16" ? "aspect-[9/16]" :
-                                        aspectRatio === "2:3" ? "aspect-[2/3]" :
-                                        "aspect-[3/2]"
-                                    ),
-                                    !isFullscreen && "border-b overflow-hidden min-h-[600px] lg:min-h-[700px] xl:min-h-[800px]",
-                                    isFullscreen ? "fixed inset-0 z-50 h-screen w-screen flex items-center justify-center bg-black overflow-hidden" : "h-full"
-                                )}
-                            >
-                                <AnimatePresence mode="wait">
-                                    {generating ? (
-                                        <motion.div
-                                            key="generating"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={fadeInOut}
-                                            className="flex h-full w-full flex-col items-center justify-center"
-                                        >
+                                        {generating ? (
                                             <motion.div
-                                                initial={{ rotate: 0 }}
-                                                animate={{ rotate: 360 }}
-                                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                                className="mb-6"
-                                            >
-                                                <div className="relative">
-                                                    <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
-                                                    <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
-                                                    <Sparkles className="h-12 w-12 text-primary" />
-                                                </div>
-                                            </motion.div>
-                                            <div className="w-2/3 max-w-md mb-4">
-                                                <Progress value={progress} className="h-2" />
-                                                <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                                                    <span>0%</span>
-                                                    <span>{Math.round(progress)}%</span>
-                                                    <span>100%</span>
-                                                </div>
-                                            </div>
-                                            <motion.p
-                                                className="mt-1 text-sm text-primary font-medium"
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
-                                                transition={{ duration: 0.3 }}
+                                                className="flex items-center"
                                             >
-                                                {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
-                                            </motion.p>
-                                            <motion.div
-                                                key={processingStage}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                transition={{ duration: 0.3 }}
-                                                className="mt-1 text-xs text-muted-foreground"
-                                            >
-                                                {processingStage}
+                                                <RotateCw className="mr-2 h-4 w-4 animate-spin" />
+                                                {loadingStage || `${getTranslation('form.generating')} ${Math.round(progress)}%`}
                                             </motion.div>
-                                        </motion.div>
-                                    ) : generatedImage ? (
-                                        <motion.div
-                                            key="result"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={scale}
-                                            className={cn(
-                                                "relative overflow-hidden flex items-center justify-center",
-                                                isFullscreen ? "h-full w-full" : "h-full w-full"
-                                            )}
-                                        >
-                                            {compareMode && sourceImage ? (
-                                                <div className={cn(
-                                                    "relative flex",
-                                                    isFullscreen ? "h-full w-full max-h-screen max-w-screen" : "h-full w-full"
-                                                )}>
-                                                    <div className="w-1/2 h-full overflow-hidden border-r border-primary flex items-center justify-center">
-                                                        <img 
-                                                            src={sourceImage} 
-                                                            alt="Source" 
-                                                            className={cn(
-                                                                "object-contain",
-                                                                isFullscreen ? "max-h-full max-w-full" : "h-full w-full object-cover"
-                                                            )}
-                                                        />
-                                                    </div>
-                                                    <div className="w-1/2 h-full overflow-hidden flex items-center justify-center">
-                                                        <img 
-                                                            src={generatedImage} 
-                                                            alt="Generated" 
-                                                            className={cn(
-                                                                "object-contain",
-                                                                isFullscreen ? "max-h-full max-w-full" : "h-full w-full object-cover"
-                                                            )}
-                                                        />
-                                                    </div>
-                                                    <div className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm p-2 rounded-md text-sm z-10">
-                                                        Оригинал / Сгенерированное
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <motion.div
-                                                    initial={{ scale: 0.9, opacity: 0 }}
-                                                    animate={{ 
-                                                        scale: isFullscreen ? 1 : zoomLevel / 100, 
-                                                        opacity: 1,
-                                                        x: imagePosition.x,
-                                                        y: imagePosition.y 
-                                                    }}
-                                                    transition={{ duration: 0.3 }}
-                                                    className={cn(
-                                                        "flex items-center justify-center",
-                                                        isFullscreen ? "h-full w-full" : "h-full w-full"
-                                                    )}
-                                                    onMouseDown={handleImageMouseDown}
-                                                    onMouseMove={handleImageMouseMove}
-                                                    onMouseUp={handleImageMouseUp}
-                                                    onMouseLeave={handleImageMouseUp}
-                                                >
-                                                    {imageLoading && (
-                                                        <div className="absolute inset-0 flex items-center justify-center bg-muted/5 z-10">
-                                                            <RotateCw className="h-8 w-8 animate-spin text-primary/60" />
-                                                        </div>
-                                                    )}
-                                                    {imageError ? (
-                                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/5 z-10">
-                                                            <X className="h-8 w-8 text-red-500 mb-2" />
-                                                            <p className="text-sm text-muted-foreground">Ошибка загрузки изображения</p>
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
-                                                                className="mt-2"
-                                                                onClick={() => {
-                                                                    setImageError(false);
-                                                                    setImageLoading(true);
-                                                                    const imgSrc = generatedImage;
-                                                                    setGeneratedImage(null);
-                                                                    setTimeout(() => setGeneratedImage(imgSrc), 100);
-                                                                }}
-                                                            >
-                                                                Попробовать снова
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <img
-                                                            src={generatedImage}
-                                                            alt="Generated"
-                                                            className={cn(
-                                                                "object-contain",
-                                                                isFullscreen 
-                                                                    ? "max-h-full max-w-full" 
-                                                                    : "h-full w-full"
-                                                            )}
-                                                            draggable={false}
-                                                            onLoad={handleImageLoad}
-                                                            onError={handleImageError}
-                                                            style={{ 
-                                                                opacity: imageLoading ? 0 : 1,
-                                                                transform: isFullscreen ? `scale(${zoomLevel / 100})` : 'none'
-                                                            }}
-                                                        />
-                                                    )}
-                                                </motion.div>
-                                            )}
-                                            
-                                            {/* Панель инструментов, если масштаб больше 100% и не полноэкранный режим */}
-                                            {zoomLevel > 100 && !compareMode && !isFullscreen && (
-                                                <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-lg shadow-md z-10">
-                                                    <Button variant="ghost" size="sm" onClick={resetZoomAndPosition} className="text-xs">
-                                                        Центрировать
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </motion.div>
+                                        ) : (
+                                            <motion.div
+                                                className="flex items-center"
+                                                whileHover={{ scale: 1.03 }}
+                                                whileTap={{ scale: 0.97 }}
+                                            >
+                                                <Sparkles className="mr-2 h-4 w-4" />
+                                                {getTranslation('form.generate')}
+                                            </motion.div>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Collapsed panel button */}
+                {isPanelCollapsed && (
+                    <motion.div
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10"
+                    >
+                        <Button
+                            variant="default"
+                            size="icon"
+                            onClick={() => setIsPanelCollapsed(false)}
+                            className="rounded-r-lg rounded-l-none h-16 w-8"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </motion.div>
+                )}
+
+                {/* Preview panel */}
+                <div className={cn(
+                    "flex-1 flex flex-col bg-background overflow-hidden",
+                    isFullscreen && "fixed inset-0 z-50"
+                )}>
+                    {/* Preview header */}
+                    {!isFullscreen && (
+                        <div className="p-4 border-b flex items-center justify-between">
+                            <h2 className="text-lg font-semibold">{getTranslation('form.preview')}</h2>
+                            {generatedImage && (
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
+                                        <ZoomOut className="h-4 w-4" />
+                                    </Button>
+                                    <span className="text-sm font-medium w-12 text-center">{zoomLevel}%</span>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoomLevel(Math.min(300, zoomLevel + 10))}>
+                                        <ZoomIn className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={resetZoomAndPosition}>
+                                        <RotateCcw className="h-4 w-4" />
+                                    </Button>
+                                    <div className="w-px h-6 bg-border mx-1" />
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={toggleFullscreen}>
+                                        <Maximize className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Image container */}
+                    <div className={cn(
+                        "flex-1 relative overflow-hidden",
+                        isFullscreen ? "bg-black" : "bg-muted/10"
+                    )}>
+                        <AnimatePresence mode="wait">
+                            {generating ? (
+                                <motion.div
+                                    key="generating"
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    variants={fadeInOut}
+                                    className="flex h-full w-full flex-col items-center justify-center"
+                                >
+                                    <motion.div
+                                        initial={{ rotate: 0 }}
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                        className="mb-6"
+                                    >
+                                        <div className="relative">
+                                            <Sparkles className="absolute -left-6 -top-6 h-4 w-4 text-primary/60" />
+                                            <Sparkles className="absolute -right-8 -bottom-4 h-5 w-5 text-primary/70" />
+                                            <Sparkles className="h-12 w-12 text-primary" />
+                                        </div>
+                                    </motion.div>
+                                    <div className="w-2/3 max-w-md mb-4">
+                                        <Progress value={progress} className="h-2" />
+                                        <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                            <span>0%</span>
+                                            <span>{Math.round(progress)}%</span>
+                                            <span>100%</span>
+                                        </div>
+                                    </div>
+                                    <motion.p
+                                        className="mt-1 text-sm text-primary font-medium"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ duration: 0.3 }}
+                                    >
+                                        {loadingStage || `${getTranslation('form.creating')} ${Math.round(progress)}%`}
+                                    </motion.p>
+                                    <motion.div
+                                        key={processingStage}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="mt-1 text-xs text-muted-foreground"
+                                    >
+                                        {processingStage}
+                                    </motion.div>
+                                </motion.div>
+                            ) : generatedImage ? (
+                                <motion.div
+                                    key="result"
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    variants={scale}
+                                    className="relative h-full w-full flex items-center justify-center"
+                                >
+                                    {compareMode && sourceImage ? (
+                                        <div className="relative flex h-full w-full">
+                                            <div className="w-1/2 h-full overflow-hidden border-r border-primary flex items-center justify-center">
+                                                <img 
+                                                    src={sourceImage} 
+                                                    alt="Source" 
+                                                    className="max-h-full max-w-full object-contain"
+                                                />
+                                            </div>
+                                            <div className="w-1/2 h-full overflow-hidden flex items-center justify-center">
+                                                <img 
+                                                    src={generatedImage} 
+                                                    alt="Generated" 
+                                                    className="max-h-full max-w-full object-contain"
+                                                />
+                                            </div>
+                                            <div className="absolute top-4 left-4 bg-background/80 backdrop-blur-sm p-2 rounded-md text-sm">
+                                                Оригинал / Сгенерированное
+                                            </div>
+                                        </div>
                                     ) : (
                                         <motion.div
-                                            key="empty"
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            variants={fadeInOut}
-                                            className="flex h-full w-full flex-col items-center justify-center bg-muted/5 p-4 text-center"
+                                            initial={{ scale: 0.9, opacity: 0 }}
+                                            animate={{ 
+                                                scale: zoomLevel / 100, 
+                                                opacity: 1,
+                                                x: imagePosition.x,
+                                                y: imagePosition.y 
+                                            }}
+                                            transition={{ duration: 0.3 }}
+                                            className="flex items-center justify-center h-full w-full"
+                                            onMouseDown={handleImageMouseDown}
+                                            onMouseMove={handleImageMouseMove}
+                                            onMouseUp={handleImageMouseUp}
+                                            onMouseLeave={handleImageMouseUp}
+                                            style={{ cursor: zoomLevel > 100 ? 'move' : 'default' }}
                                         >
-                                            <motion.div
-                                                className="rounded-full bg-muted/80 p-3"
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                            >
-                                                <Sparkles className="h-6 w-6 text-muted-foreground" />
-                                            </motion.div>
-                                            <motion.p
-                                                className="mt-3 text-sm text-muted-foreground"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: 0.1, duration: 0.3 }}
-                                            >
-                                                {getTranslation('form.image_will_appear')}
-                                            </motion.p>
-                                            <motion.p
-                                                className="mt-1 text-xs text-muted-foreground"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: 0.2, duration: 0.3 }}
-                                            >
-                                                {getTranslation('form.start_with_prompt')}
-                                            </motion.p>
+                                            {imageLoading && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-muted/5 z-10">
+                                                    <RotateCw className="h-8 w-8 animate-spin text-primary/60" />
+                                                </div>
+                                            )}
+                                            {imageError ? (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/5 z-10">
+                                                    <X className="h-8 w-8 text-red-500 mb-2" />
+                                                    <p className="text-sm text-muted-foreground">Ошибка загрузки изображения</p>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        className="mt-2"
+                                                        onClick={() => {
+                                                            setImageError(false);
+                                                            setImageLoading(true);
+                                                            const imgSrc = generatedImage;
+                                                            setGeneratedImage(null);
+                                                            setTimeout(() => setGeneratedImage(imgSrc), 100);
+                                                        }}
+                                                    >
+                                                        Попробовать снова
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={generatedImage}
+                                                    alt="Generated"
+                                                    className="max-h-full max-w-full object-contain"
+                                                    draggable={false}
+                                                    onLoad={handleImageLoad}
+                                                    onError={handleImageError}
+                                                    style={{ opacity: imageLoading ? 0 : 1 }}
+                                                />
+                                            )}
                                         </motion.div>
                                     )}
-                                </AnimatePresence>
-                            </div>
-                        </CardContent>
-
-                        {/* Actions for generated image - только для не-полноэкранного режима */}
-                        <AnimatePresence>
-                            {generatedImage && !isFullscreen && (
+                                </motion.div>
+                            ) : (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 20 }}
-                                    transition={{ duration: 0.3 }}
+                                    key="empty"
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    variants={fadeInOut}
+                                    className="flex h-full w-full flex-col items-center justify-center p-8 text-center"
                                 >
-                                    <CardFooter className="flex flex-wrap justify-between gap-2 p-3">
-                                        <div className="flex gap-1.5">
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={() => {
-                                                    showNotification('Изображение сохранено в вашу галерею');
-                                                }}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Save className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.save')}
-                                                </motion.div>
-                                            </Button>
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={handleDownload}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Download className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.download')}
-                                                </motion.div>
-                                            </Button>
-                                            
-                                            {sourceImage && (
-                                                <Button 
-                                                    variant="outline" 
-                                                    size="sm" 
-                                                    className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                    onClick={() => setCompareMode(!compareMode)}
-                                                >
-                                                    <motion.div
-                                                        whileHover={{ scale: 1.1 }}
-                                                        whileTap={{ scale: 0.9 }}
-                                                        className="flex items-center"
-                                                    >
-                                                        <FileCode className="mr-1.5 h-3.5 w-3.5" />
-                                                        {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
-                                                    </motion.div>
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={handleVariations}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.variations')}
-                                                </motion.div>
-                                            </Button>
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
-                                                className="h-8 hover:bg-primary/5 transition-colors duration-200"
-                                                onClick={handleShare}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    className="flex items-center"
-                                                >
-                                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                    {getTranslation('form.share')}
-                                                </motion.div>
-                                            </Button>
-                                            
-                                            <Button 
-                                                variant="default" 
-                                                size="sm" 
-                                                className="h-8 relative overflow-hidden"
-                                                onClick={handleShareToCommunity}
-                                                disabled={isProcessing || !user}
-                                            >
-                                                <motion.div
-                                                    whileHover={{ scale: 1.05 }}
-                                                    whileTap={{ scale: 0.95 }}
-                                                    className="flex items-center relative z-10"
-                                                >
-                                                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                                                    {isProcessing ? getTranslation('form.publishing') : getTranslation('form.to_community')}
-                                                </motion.div>
-                                                <motion.span
-                                                    className="absolute inset-0 bg-white/10"
-                                                    initial={{ scale: 0, opacity: 0 }}
-                                                    whileHover={{ scale: 1.5, opacity: 0.2 }}
-                                                    transition={{ duration: 0.4 }}
-                                                />
-                                            </Button>
-                                        </div>
-                                    </CardFooter>
+                                    <motion.div
+                                        className="rounded-full bg-muted/80 p-4 mb-4"
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        <Sparkles className="h-8 w-8 text-muted-foreground" />
+                                    </motion.div>
+                                    <motion.p
+                                        className="text-lg text-muted-foreground"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.1, duration: 0.3 }}
+                                    >
+                                        {getTranslation('form.image_will_appear')}
+                                    </motion.p>
+                                    <motion.p
+                                        className="mt-2 text-sm text-muted-foreground"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.2, duration: 0.3 }}
+                                    >
+                                        {getTranslation('form.start_with_prompt')}
+                                    </motion.p>
                                 </motion.div>
                             )}
                         </AnimatePresence>
+                    </div>
 
-                        {/* Recent generations - только для не-полноэкранного режима */}
-                        <AnimatePresence>
-                            {recentGenerations.length > 0 && !isFullscreen && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                >
-                                    <div className="p-3 pt-0 border-t">
+                    {/* Actions for generated image */}
+                    <AnimatePresence>
+                        {generatedImage && !isFullscreen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 20 }}
+                                transition={{ duration: 0.3 }}
+                                className="p-4 border-t bg-card/50 backdrop-blur-sm"
+                            >
+                                <div className="flex flex-wrap justify-between gap-3">
+                                    <div className="flex gap-2">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={handleDownload}
+                                        >
+                                            <Download className="mr-2 h-4 w-4" />
+                                            {getTranslation('form.download')}
+                                        </Button>
+                                        
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={handleVariations}
+                                        >
+                                            <Wand2 className="mr-2 h-4 w-4" />
+                                            {getTranslation('form.variations')}
+                                        </Button>
+                                        
+                                        {sourceImage && (
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm"
+                                                onClick={() => setCompareMode(!compareMode)}
+                                            >
+                                                <FileCode className="mr-2 h-4 w-4" />
+                                                {compareMode ? 'Скрыть сравнение' : 'Сравнить'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={handleShare}
+                                        >
+                                            <Share2 className="mr-2 h-4 w-4" />
+                                            {getTranslation('form.share')}
+                                        </Button>
+                                        
+                                        <Button 
+                                            variant="default" 
+                                            size="sm"
+                                            onClick={handleShareToCommunity}
+                                            disabled={isProcessing || !user}
+                                        >
+                                            <Share2 className="mr-2 h-4 w-4" />
+                                            {isProcessing ? getTranslation('form.publishing') : getTranslation('form.to_community')}
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Recent generations */}
+                                {recentGenerations.length > 0 && (
+                                    <div className="mt-4">
                                         <div className="flex items-center justify-between mb-2">
                                             <h3 className="text-sm font-medium">{getTranslation('form.previous')}</h3>
                                             <Button variant="ghost" size="sm" className="h-7 text-xs">
@@ -2703,20 +2349,19 @@ export const ImprovedGenerationForm: React.FC = () => {
                                             ))}
                                         </div>
                                     </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </Card>
-                </motion.div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
 
-                {/* Обновленная панель управления для полноэкранного режима */}
+                {/* Fullscreen controls */}
                 {isFullscreen && generatedImage && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-black/80 backdrop-blur-md p-3 rounded-xl shadow-2xl z-50 border border-white/10"
                     >
-                        {/* Группа кнопок действий */}
                         <div className="flex items-center gap-2">
                             <Button 
                                 variant="secondary" 
@@ -2741,10 +2386,8 @@ export const ImprovedGenerationForm: React.FC = () => {
                             )}
                         </div>
                         
-                        {/* Разделитель */}
-                        <div className="h-6 w-px bg-white/20"></div>
+                        <div className="h-6 w-px bg-white/20" />
                         
-                        {/* Контролы масштабирования */}
                         <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
                             <Button 
                                 variant="ghost" 
@@ -2765,7 +2408,6 @@ export const ImprovedGenerationForm: React.FC = () => {
                             </Button>
                         </div>
                         
-                        {/* Кнопка сброса */}
                         <Button 
                             variant="ghost" 
                             size="icon" 
@@ -2773,13 +2415,11 @@ export const ImprovedGenerationForm: React.FC = () => {
                             onClick={resetZoomAndPosition}
                             title="Сбросить масштаб и позицию"
                         >
-                            <RotateCw className="h-4 w-4" />
+                            <RotateCcw className="h-4 w-4" />
                         </Button>
                         
-                        {/* Разделитель */}
-                        <div className="h-6 w-px bg-white/20"></div>
+                        <div className="h-6 w-px bg-white/20" />
                         
-                        {/* Кнопка выхода из полноэкранного режима */}
                         <Button 
                             variant="ghost" 
                             size="icon" 
