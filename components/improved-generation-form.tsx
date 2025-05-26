@@ -30,6 +30,14 @@ import { RadioGroup } from "@radix-ui/react-dropdown-menu";
 import { RadioGroupItem } from "@radix-ui/react-radio-group";
 import { SelectLabel } from "@radix-ui/react-select";
 
+const GENERATION_COSTS = {
+    base: 10,
+    ultraMode: 25,
+    hiresMode: 15,
+    largeSize: 20,
+    img2img: 5,
+  };  
+
 // Обновленная функция сохранения изображения на сервере
 const saveImageToServer = async (
     imageData: string, 
