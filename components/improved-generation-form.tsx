@@ -135,7 +135,7 @@ interface Notification {
     type?: 'success' | 'error' | 'info';
 }
 
-export const ImprovedGenerationForm: React.FC = () => {
+export const ImprovedGenerationForm = () => {
     const { language } = useLanguage();
     const [generating, setGenerating] = useState<boolean>(false);
     const [progress, setProgress] = useState<number>(0);
@@ -145,8 +145,9 @@ export const ImprovedGenerationForm: React.FC = () => {
     const [negativePrompt, setNegativePrompt] = useState<string>("");
     const [error, setError] = useState<string | null>(null);
     const [loadingStage, setLoadingStage] = useState<string | null>(null);
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth(); // Добавляем isAuthenticated
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
+    const [showAuthModal, setShowAuthModal] = useState<boolean>(false); // Состояние для модального окна/плашки
 
     // UI settings
     const [showTagSuggestions, setShowTagSuggestions] = useState<boolean>(false);
@@ -199,6 +200,59 @@ export const ImprovedGenerationForm: React.FC = () => {
     const generationContainerRef = useRef<HTMLDivElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
 
+    // Функция для проверки аутентификации и отображения модального окна
+    const requireAuth = (action: () => void) => {
+        if (!isAuthenticated) {
+            setShowAuthModal(true);
+        } else {
+            action();
+        }
+    };
+
+    const handleGenerateClick = () => {
+        requireAuth(() => {
+            handleGenerate();
+        });
+    };
+
+    const handleSaveImageClick = () => {
+        requireAuth(() => {
+            if (generatedImage) {
+                // saveImage is a utility function, typically for client-side download
+                // For server-side saving, ensure saveImageToServer is implemented and used if needed.
+                // For now, we assume saveImage handles client-side download as per its typical use.
+                imageService.saveImage(generatedImage, prompt, user?.id);
+                showNotification(getTranslation('form.imageSavedSuccess') || 'Image saved successfully!', 'success');
+            } else {
+                showNotification(getTranslation('form.noImageToSave') || 'No image to save.', 'info');
+            }
+        });
+    };
+
+    const handleDownloadClick = () => {
+        requireAuth(() => {
+            handleDownload();
+        });
+    };
+
+    const handleVariationsClick = () => {
+        requireAuth(() => {
+            handleVariations();
+        });
+    };
+
+    const handleShareClick = () => {
+        requireAuth(() => {
+            handleShare();
+        });
+    };
+
+    const handleShareToCommunityClick = () => {
+        requireAuth(() => {
+            handleShareToCommunity();
+        });
+    };
+
     // Translation resources
     const formTranslations = {
         'form.title': {
@@ -216,6 +270,14 @@ export const ImprovedGenerationForm: React.FC = () => {
         'form.advanced': {
             en: 'Advanced',
             ru: 'Расширенные'
+        },
+        'form.imageSavedSuccess': {
+            en: 'Image saved successfully!',
+            ru: 'Изображение успешно сохранено!'
+        },
+        'form.noImageToSave': {
+            en: 'No image to save.',
+            ru: 'Нет изображения для сохранения.'
         },
         'form.prompt': {
             en: 'Prompt',
@@ -247,12 +309,9 @@ export const ImprovedGenerationForm: React.FC = () => {
         },
         'form.style_presets': {
             en: 'Style Presets',
-            ru: 'Стилевые пресеты'
+            ru: 'Стилистические пресеты'
         },
-        'form.reset': {
-            en: 'Reset',
-            ru: 'Сбросить'
-        },
+       
         'form.model_selection': {
             en: 'Model Selection',
             ru: 'Выбор модели'
@@ -547,7 +606,17 @@ export const ImprovedGenerationForm: React.FC = () => {
                 clearInterval(pollInterval);
             }
         };
-    }, [pollInterval]);
+    }, [pollInterval]); // Зависимости обновлены
+    
+    useEffect(() => {
+        if (showAuthModal && !isAuthenticated) {
+            const timer = setTimeout(() => {
+                setShowAuthModal(false);
+            }, 10000); // Автоматически скрыть через 10 секунд
+    
+            return () => clearTimeout(timer);
+        }
+    }, [showAuthModal, isAuthenticated]);
 
     // Update processing stage based on progress
     useEffect(() => {
@@ -1337,48 +1406,13 @@ export const ImprovedGenerationForm: React.FC = () => {
   
     // Добавляем эффект для обработки drag & drop
     useEffect(() => {
-        const dropZone = dropZoneRef.current;
-        if (!dropZone) return;
-        
-        const handleDragEnterEvent = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(true);
-        };
-        
-        const handleDragLeaveEvent = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(false);
-        };
-        
-        const handleDragOverEvent = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        const handleDropEvent = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragging(false);
-            if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-                const file = e.dataTransfer.files[0];
-                processFile(file);
+        // Cleanup function for pollInterval
+        return () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
             }
         };
-        
-        dropZone.addEventListener('dragenter', handleDragEnterEvent);
-        dropZone.addEventListener('dragleave', handleDragLeaveEvent);
-        dropZone.addEventListener('dragover', handleDragOverEvent);
-        dropZone.addEventListener('drop', handleDropEvent);
-        
-        return () => {
-            dropZone.removeEventListener('dragenter', handleDragEnterEvent);
-            dropZone.removeEventListener('dragleave', handleDragLeaveEvent);
-            dropZone.removeEventListener('dragover', handleDragOverEvent);
-            dropZone.removeEventListener('drop', handleDropEvent);
-        };
-    }, []);
+    }, [pollInterval]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -1418,6 +1452,7 @@ export const ImprovedGenerationForm: React.FC = () => {
     const renderComplexityVisualization = () => {
         const complexity = calculateComplexity();
         return (
+        <>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -1446,6 +1481,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                     <div className="text-xs text-red-500 text-right">{getTranslation('form.complex')}</div>
                 </div>
             </motion.div>
+        </>
         );
     };
 
@@ -1458,6 +1494,7 @@ export const ImprovedGenerationForm: React.FC = () => {
     ) => {
         const percentage = ((value - min) / (max - min)) * 100;
         return (
+        <>
             <motion.div
                 initial="hidden"
                 animate="visible"
@@ -1477,11 +1514,55 @@ export const ImprovedGenerationForm: React.FC = () => {
                     <span className="text-xs text-muted-foreground">{descriptions?.max || max}</span>
                 </div>
             </motion.div>
+        </>
         );
     };
 
     // Главный рендер с улучшенной компоновкой
     return (
+        <>
+           {showAuthModal && !isAuthenticated && (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed right-6 top-20 z-50 w-72"
+                >
+                    <div className="rounded-lg border bg-card/95 backdrop-blur-sm shadow-lg">
+                        <div className="flex items-center justify-between p-3">
+                            <div className="flex items-center space-x-2">
+                                <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+                                <span className="text-sm font-medium text-foreground">
+                                    Авторизация требуется
+                                </span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => setShowAuthModal(false)}
+                            >
+                                <X className="h-3 w-3" />
+                            </Button>
+                        </div>
+                        <div className="px-3 pb-3">
+                            <p className="text-xs text-muted-foreground mb-2">
+                                Войдите для использования всех функций
+                            </p>
+                            <a
+                                href="/login"
+                                className="inline-flex w-full items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                            >
+                                Войти
+                            </a>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+           
+
+        {/* Основной контент формы */}
         <div className="fixed inset-0 flex flex-col bg-background">
             {/* Notification */}
             <AnimatePresence>
@@ -2007,7 +2088,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                 {/* Generate button */}
                                 <div className="p-4 border-t">
                                     <Button
-                                        onClick={handleGenerate}
+                                        onClick={handleGenerateClick} // <--- Изменено здесь
                                         disabled={generating || !prompt.trim()}
                                         className="w-full h-10 relative overflow-hidden"
                                     >
@@ -2276,7 +2357,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         <Button 
                                             variant="outline" 
                                             size="sm"
-                                            onClick={handleDownload}
+                                            onClick={handleDownloadClick} // <--- Изменено здесь
                                         >
                                             <Download className="mr-2 h-4 w-4" />
                                             {getTranslation('form.download')}
@@ -2285,7 +2366,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         <Button 
                                             variant="outline" 
                                             size="sm"
-                                            onClick={handleVariations}
+                                            onClick={handleVariationsClick} // <--- Изменено здесь
                                         >
                                             <Wand2 className="mr-2 h-4 w-4" />
                                             {getTranslation('form.variations')}
@@ -2307,7 +2388,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         <Button 
                                             variant="outline" 
                                             size="sm"
-                                            onClick={handleShare}
+                                            onClick={handleShareClick} // <--- Изменено здесь
                                         >
                                             <Share2 className="mr-2 h-4 w-4" />
                                             {getTranslation('form.share')}
@@ -2316,7 +2397,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                         <Button 
                                             variant="default" 
                                             size="sm"
-                                            onClick={handleShareToCommunity}
+                                            onClick={handleShareToCommunityClick} // <--- Изменено здесь
                                             disabled={isProcessing || !user}
                                         >
                                             <Share2 className="mr-2 h-4 w-4" />
@@ -2376,7 +2457,7 @@ export const ImprovedGenerationForm: React.FC = () => {
                                 variant="secondary" 
                                 size="sm" 
                                 className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/20"
-                                onClick={handleDownload}
+                                onClick={handleDownloadClick} // <--- Изменено здесь
                             >
                                 <Download className="mr-2 h-4 w-4" />
                                 {getTranslation('form.download')}
@@ -2442,5 +2523,6 @@ export const ImprovedGenerationForm: React.FC = () => {
                 )}
             </div>
         </div>
+        </>
     );
 };
