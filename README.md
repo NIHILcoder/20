@@ -1,4 +1,4 @@
-# VisioMera Evolution - Система сообщества и аккаунтов
+# VisioMera Evolution
 
 Завершен - "75%"
 Заброшен - "Да"
