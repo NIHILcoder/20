@@ -1,6 +1,7 @@
 // services/bfl-api.ts
 import axios from 'axios';
 
+
 export class BflApiService {
   [x: string]: any;
   async generateWithFluxPro11(params: any) {
@@ -65,5 +66,6 @@ export class BflApiService {
     }
   }
 }
+
 
 export const bflApiService = new BflApiService();
