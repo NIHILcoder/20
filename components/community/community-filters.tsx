@@ -46,6 +46,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
       'community.landscape': 'Landscape',
       'community.abstract': 'Abstract',
       'community.fantasy': 'Fantasy',
+      'community.sci-fi': 'Sci-Fi',
+      'community.cyberpunk': 'Cyberpunk',
+      'community.anime': 'Anime',
+      'community.digital-art': 'Digital Art',
+      'community.concept-art': 'Concept Art',
       'community.animals': 'Animals',
       'community.architecture': 'Architecture',
       'community.art': 'Art',
@@ -54,8 +59,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
       'community.other_models': 'Other Models',
       'community.all_time': 'All Time',
       'community.today': 'Today',
+      'community.yesterday': 'Yesterday',
       'community.this_week': 'This Week',
       'community.this_month': 'This Month',
+      'community.this_quarter': 'This Quarter',
+      'community.this_year': 'This Year',
       'community.search_placeholder': 'Search community...',
       'community.grid_view': 'Grid View',
       'community.list_view': 'List View',
@@ -79,6 +87,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
       'community.landscape': 'Пейзаж',
       'community.abstract': 'Абстракция',
       'community.fantasy': 'Фэнтези',
+      'community.sci-fi': 'Научная фантастика',
+      'community.cyberpunk': 'Киберпанк',
+      'community.anime': 'Аниме',
+      'community.digital-art': 'Цифровое искусство',
+      'community.concept-art': 'Концепт-арт',
       'community.animals': 'Животные',
       'community.architecture': 'Архитектура',
       'community.art': 'Искусство',
@@ -87,8 +100,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
       'community.other_models': 'Другие модели',
       'community.all_time': 'За все время',
       'community.today': 'Сегодня',
+      'community.yesterday': 'Вчера',
       'community.this_week': 'За эту неделю',
       'community.this_month': 'За этот месяц',
+      'community.this_quarter': 'За этот квартал',
+      'community.this_year': 'За этот год',
       'community.search_placeholder': 'Поиск по сообществу...',
       'community.grid_view': 'Сетка',
       'community.list_view': 'Список',
@@ -109,6 +125,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
     { id: 'landscape', name: t.localT('community.landscape') },
     { id: 'abstract', name: t.localT('community.abstract') },
     { id: 'fantasy', name: t.localT('community.fantasy') },
+    { id: 'sci-fi', name: t.localT('community.sci-fi') },
+    { id: 'cyberpunk', name: t.localT('community.cyberpunk') },
+    { id: 'anime', name: t.localT('community.anime') },
+    { id: 'digital-art', name: t.localT('community.digital-art') },
+    { id: 'concept-art', name: t.localT('community.concept-art') },
     { id: 'animals', name: t.localT('community.animals') },
     { id: 'architecture', name: t.localT('community.architecture') },
     { id: 'art', name: t.localT('community.art') },
@@ -118,10 +139,14 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
   // Типы моделей
   const modelTypes = [
     { id: 'all', name: t.localT('community.all_models') },
-    { id: 'stable-diffusion', name: 'Stable Diffusion' },
-    { id: 'midjourney', name: 'Midjourney' },
-    { id: 'dalle', name: 'DALL-E' },
-    { id: 'kandinsky', name: 'Kandinsky' },
+    { id: 'stable-diffusion-xl', name: 'Stable Diffusion XL' },
+    { id: 'stable-diffusion-3', name: 'Stable Diffusion 3' },
+    { id: 'flux', name: 'FLUX Standard' },
+    { id: 'flux_ultra', name: 'FLUX Ultra' },
+    { id: 'flux_realistic', name: 'FLUX Raw' },
+    { id: 'flux_fill', name: 'FLUX Fill' },
+    { id: 'dalle-3', name: 'DALL-E 3' },
+    { id: 'kandinsky-3', name: 'Kandinsky 3' },
     { id: 'other', name: t.localT('community.other_models') }
   ];
   
@@ -129,8 +154,11 @@ export function CommunityFilters({ onFilterChange }: CommunityFiltersProps) {
   const timeRanges = [
     { id: 'all', name: t.localT('community.all_time') },
     { id: 'today', name: t.localT('community.today') },
+    { id: 'yesterday', name: t.localT('community.yesterday') },
     { id: 'week', name: t.localT('community.this_week') },
-    { id: 'month', name: t.localT('community.this_month') }
+    { id: 'month', name: t.localT('community.this_month') },
+    { id: 'quarter', name: t.localT('community.this_quarter') },
+    { id: 'year', name: t.localT('community.this_year') }
   ];
   
   // Применение фильтров

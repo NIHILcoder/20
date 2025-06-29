@@ -6,6 +6,7 @@
  * Интерфейсы для типизации данных
  */
 export interface Artwork {
+  parameters: {};
   id: number;
   title: string;
   prompt: string;

@@ -6,8 +6,10 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Heart, MessageSquare, Eye } from 'lucide-react';
+import { Heart, MessageSquare, Eye, Download, Share2, X } from 'lucide-react';
 import { useLanguage, useLocalTranslation } from '@/components/language-context';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 // Пагинация реализована с использованием базовых HTML-элементов
 
 interface ArtworkGridProps {
@@ -34,6 +36,7 @@ interface Artwork {
   views: number;
   tags: string[];
   model: string;
+  prompt?: string;
 }
 
 interface PaginationData {
@@ -65,9 +68,30 @@ export function ArtworkGrid({
     offset: 0,
     hasMore: false
   });
+  const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   const { language } = useLanguage();
-  const t = useLocalTranslation({en: {}, ru: {}}); // Pass empty translations object for both languages
+  const t = useLocalTranslation({
+    en: {
+      'artwork_details': 'Artwork Details',
+      'by_artist': 'By',
+      'created_at': 'Created at',
+      'model': 'Model',
+      'prompt': 'Prompt',
+      'no_prompt': 'No prompt information available',
+      'no_artworks_found': 'No artworks found matching your criteria'
+    },
+    ru: {
+      'artwork_details': 'Детали работы',
+      'by_artist': 'Автор',
+      'created_at': 'Создано',
+      'model': 'Модель',
+      'prompt': 'Промпт',
+      'no_prompt': 'Информация о промпте отсутствует',
+      'no_artworks_found': 'Не найдено работ, соответствующих вашим критериям'
+    }
+  });
   
   // Загрузка работ
   useEffect(() => {
@@ -161,12 +185,49 @@ export function ArtworkGrid({
     );
   }
   
+  // Функция форматирования даты
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+  
+  // Обработчик для скачивания изображения
+  const handleDownloadArtwork = async (artwork: Artwork) => {
+    try {
+      const response = await fetch(artwork.image_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `artwork_${artwork.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      // Можно добавить уведомление об успешном скачивании
+    } catch (error) {
+      console.error('Ошибка при скачивании изображения:', error);
+    }
+  };
+  
+  // Обработчик для открытия диалогового окна с деталями работы
+  const handleArtworkClick = (artwork: Artwork) => {
+    setSelectedArtwork(artwork);
+    setDialogOpen(true);
+  };
+  
   // Отображение пустого результата
   if (artworks.length === 0 && !loading) {
     return (
       <div className="text-center p-8">
         <p className="text-muted-foreground">
-          {t.localT('community.no_artworks_found')}
+          {t.localT('no_artworks_found')}
         </p>
       </div>
     );
@@ -179,12 +240,12 @@ export function ArtworkGrid({
         : "space-y-4"
       }>
         {artworks.map((artwork) => (
-          <Card key={artwork.id} className={viewMode === 'list' ? "flex overflow-hidden" : "overflow-hidden"}>
+          <Card key={artwork.id} className={viewMode === 'list' ? "flex overflow-hidden" : "overflow-hidden"} onClick={() => handleArtworkClick(artwork)}>
             <div className={viewMode === 'list' ? "w-1/3" : ""}>
               <img 
                 src={artwork.image_url} 
                 alt={artwork.title} 
-                className="h-48 w-full object-cover transition-transform hover:scale-105"
+                className="h-48 w-full object-cover transition-transform hover:scale-105 cursor-pointer"
               />
             </div>
             <div className={viewMode === 'list' ? "w-2/3" : ""}>
@@ -286,6 +347,95 @@ export function ArtworkGrid({
           </nav>
         </div>
       )}
+
+      {/* Диалоговое окно с деталями работы */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto bg-background/95 backdrop-blur-sm">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl">{t.localT('artwork_details')}</DialogTitle>
+              <Button variant="ghost" size="icon" onClick={() => setDialogOpen(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          
+          {selectedArtwork && (
+            <div className="space-y-4">
+              <div className="relative aspect-square w-full overflow-hidden rounded-md">
+                <img 
+                  src={selectedArtwork.image_url} 
+                  alt={selectedArtwork.title} 
+                  className="h-full w-full object-contain"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">{selectedArtwork.title}</h3>
+                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <Heart className="h-4 w-4" />
+                    <span>{selectedArtwork.likes_count}</span>
+                    <MessageSquare className="h-4 w-4 ml-2" />
+                    <span>{selectedArtwork.comments_count}</span>
+                    <Eye className="h-4 w-4 ml-2" />
+                    <span>{selectedArtwork.views}</span>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-muted-foreground">
+                  {t.localT('by_artist')} <span className="font-medium">{selectedArtwork.display_name || selectedArtwork.username}</span>
+                </p>
+                
+                <p className="text-sm">
+                  <span className="font-medium">{t.localT('created_at')}:</span> {formatDate(selectedArtwork.created_at)}
+                </p>
+                
+                {selectedArtwork.model && (
+                  <p className="text-sm">
+                    <span className="font-medium">{t.localT('model')}:</span> {selectedArtwork.model}
+                  </p>
+                )}
+                
+                <Separator className="my-2" />
+                
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">{t.localT('prompt')}:</p>
+                  <p className="text-sm bg-muted/50 p-3 rounded-md">
+                    {selectedArtwork.prompt || t.localT('no_prompt')}
+                  </p>
+                </div>
+                
+                <div className="flex flex-wrap gap-1 mt-3">
+                  {selectedArtwork.tags.map((tag, index) => (
+                    <Badge key={index} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              
+              <DialogFooter className="flex justify-end space-x-2 mt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleDownloadArtwork(selectedArtwork)}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  {t.localT('community.download')}
+                </Button>
+                <Button 
+                  variant="default"
+                  className="flex items-center gap-2"
+                >
+                  <Share2 className="h-4 w-4" />
+                  {t.localT('community.share')}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

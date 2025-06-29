@@ -7,7 +7,7 @@ module.exports = {
     port: process.env.DB_PORT || 5432,
     database: process.env.DB_NAME || 'visiomera',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '1',
+    password: process.env.DB_PASSWORD || '123',
     ssl: process.env.DB_SSL === 'true' ? true : false,
     
     // Настройки пула соединений

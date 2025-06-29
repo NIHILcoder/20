@@ -50,7 +50,7 @@ export default function LoginPage() {
       'login.error_occurred': 'An error occurred. Please try again.',
     },
     ru: {
-      'login.title': 'Вход в VisioMera',
+      'login.title': 'Вход в ВизиоМера',
       'login.description': 'Введите ваш email и пароль для доступа к аккаунту',
       'login.email': 'Email',
       'login.password': 'Пароль',
@@ -268,11 +268,11 @@ export default function LoginPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Button variant="outline">
                   <Github className="mr-2 h-4 w-4" />
-                  Github
+                  Вконтакте (Скоро)
                 </Button>
                 <Button variant="outline">
                   <Mail className="mr-2 h-4 w-4" />
-                  Google
+                  Яндекс (Скоро)
                 </Button>
               </div>
             </CardContent>
